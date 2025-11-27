@@ -6,3 +6,6 @@
 
 #define VIAL_UNLOCK_COMBO_ROWS {0, 4}
 #define VIAL_UNLOCK_COMBO_COLS {0, 13}
+
+/* Include expanded RGB effects from d3lilah's configuration */
+#include "rgb_effects_config.h"
