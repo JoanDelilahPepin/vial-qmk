@@ -31,7 +31,8 @@
         {"name": "GDoc H2", "title": "Google Docs Header 2", "shortName": "GD H2"},
         {"name": "GDoc H3", "title": "Google Docs Header 3", "shortName": "GD H3"},
         {"name": "GDoc Normal", "title": "Google Docs Normal Text", "shortName": "GD Norm"},
-        {"name": "AC_TOG", "title": "Toggle Autocorrect", "shortName": "AC Tog"}
+        {"name": "AC_TOG", "title": "Toggle Autocorrect", "shortName": "AC Tog"},
+        {"name": "Double Zero", "title": "Double Zero", "shortName": "00"}
     ],
     "layouts": {
         "labels":[
