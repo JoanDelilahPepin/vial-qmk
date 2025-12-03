@@ -45,8 +45,8 @@
     "rows": ["D4", "B4", "B5"]
   },
   "diode_direction": "COL2ROW",
-  "processor": "atmega32u4",
-  "bootloader": "caterina",
+  "processor": "RP2040",
+  "bootloader": "rp2040",
   "layouts": {
     "LAYOUT": {
       "layout": [

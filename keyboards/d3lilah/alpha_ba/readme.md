@@ -1,6 +1,6 @@
 # Alpha-BA
 
-![Alpha](https://github.com/JoanDelilahPepin/vial-qmk/blob/my-vial/keyboards/d3lilah/alpha_ba/alpha_ba.png)
+![Alpha](https://github.com/JoanDelilahPepin/vial-qmk/blob/vial/keyboards/d3lilah/alpha_ba/alpha_ba.png)
 
 An RP2040-powered update of PyroL's original Alpha - a 28-key, semi-ortho keyboard.
 
