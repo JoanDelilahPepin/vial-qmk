@@ -5,6 +5,16 @@
     "lighting": "qmk_rgblight",
     "customKeycodes": [
         {
+            "name": "Dump KM",
+            "title": "Dump Keymap to Console",
+            "shortName": "DumpKM"
+        },
+        {
+            "name": "AC_TOG",
+            "title": "Toggle Autocorrect",
+            "shortName": "AC Tog"
+        },
+        {
             "name": "MACRO1",
             "title": ":'(",
             "shortName": "SORRY"

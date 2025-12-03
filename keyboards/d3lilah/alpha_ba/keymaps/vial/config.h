@@ -8,6 +8,11 @@
 #define VIAL_UNLOCK_COMBO_COLS { 0, 0 }
 #define VIAL_INSECURE
 
+// RGB Layer configuration
+#define RGBLIGHT_LAYERS
+#define RGBLIGHT_LAYERS_OVERRIDE_RGB_OFF
+#define RGBLIGHT_MAX_LAYERS 4
+
 #if defined(__AVR_ATmega32U4__)
     #undef LOCKING_SUPPORT_ENABLE
     #undef LOCKING_RESYNC_ENABLE
