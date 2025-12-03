@@ -25,7 +25,7 @@
     }
   },
   "ws2812": {
-    "pin": "F4"
+    "pin": "F4"  // Maps to GP5 on Elite-Pi via CONVERT_TO
   },
   "features": {
     "bootmagic": true,
@@ -45,8 +45,6 @@
     "rows": ["D4", "B4", "B5"]
   },
   "diode_direction": "COL2ROW",
-  "processor": "RP2040",
-  "bootloader": "rp2040",
   "layouts": {
     "LAYOUT": {
       "layout": [
