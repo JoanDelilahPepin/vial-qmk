@@ -1,12 +1,26 @@
 # Alpha-BA
 
+*A themed, RP2040-powered variant of PyroL's Alpha keyboard*
+
 ![Alpha](https://github.com/JoanDelilahPepin/vial-qmk/blob/vial/keyboards/d3lilah/alpha_ba/alpha_ba.png)
 
-An RP2040-powered update of PyroL's original Alpha - a 28-key, semi-ortho keyboard.
+**Original Designer**: [PyroL](https://github.com/PyrooL/Alpha)
+**Variant Designer**: d3lilah
+**Theme**: Elphaba (Wicked)
 
-## About This Fork
+## About Alpha-BA
 
-Alpha-BA is a modernized firmware for the Alpha keyboard using an Elite-Pi (RP2040) as a drop-in replacement for the original Pro Micro. The Elite-Pi is pin-compatible with the Pro Micro, so no hardware modifications are needed beyond swapping the controller.
+The Alpha-BA ("Better Alpha" / "Elpha-BA") is a themed variant of PyroL's original Alpha - a 28-key, semi-ortho keyboard. The name is a playful combination of "Better Alpha" (representing technical improvements) and "Elphaba" (the Wicked Witch of the West from the musical Wicked), reflected in the purple and green color scheme throughout the hardware and firmware.
+
+### What Makes It "BA"
+
+- **Purple and green aesthetics** inspired by Wicked's Elphaba
+- **RP2040-powered performance** via Elite-Pi controller (drop-in Pro Micro replacement)
+- **Enhanced firmware features** leveraging the RP2040's superior processing power and memory
+- **Theatrical layer indication** with colors themed to match (green, purple, pink, gold)
+- **Smart typing assistance** with massive autocorrect dictionary and Auto Shift, making this tiny board surprisingly usable
+
+The Elite-Pi is pin-compatible with the Pro Micro, so no hardware modifications are needed beyond swapping the controller - but the experience is dramatically enhanced.
 
 ## Features
 
@@ -23,12 +37,12 @@ Alpha-BA is a modernized firmware for the Alpha keyboard using an Elite-Pi (RP20
 - Toggle with `AS_TOGG` (Quantum tab in Vial)
 - Visual feedback: orange flash (1x on, 2x off)
 
-### RGB Layer Indication
+### RGB Layer Indication (Wicked Theme)
 - 11 WS2812 LEDs on pin F4
-- Layer 0 (HOME): Green
-- Layer 1 (MODS): Purple
-- Layer 2 (MODS2): Pink
-- Layer 3 (OTHER): Yellow
+- Layer 0 (HOME): Green - Elphaba's signature color
+- Layer 1 (MODS): Purple - Elphaba's magic
+- Layer 2 (MODS2): Pink - Glinda's influence
+- Layer 3 (OTHER): Gold - The Yellow Brick Road
 
 ### Visual Feedback Summary
 | Action | Color | Pattern |
