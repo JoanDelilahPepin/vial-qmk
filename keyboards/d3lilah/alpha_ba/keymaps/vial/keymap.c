@@ -110,6 +110,9 @@ void keyboard_post_init_user(void) {
 
     // Enable autocorrect by default
     autocorrect_enable();
+
+    // Enable auto shift by default
+    autoshift_enable();
 }
 
 // ========== Key Processing ==========
@@ -172,6 +175,43 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 return false;
         }
     }
+
+    // Handle Auto Shift toggle visual feedback (AS_TOGG is a built-in keycode)
+    if (keycode == AS_TOGG && record->event.pressed) {
+        // Get current state before the toggle
+        bool was_enabled = get_autoshift_state();
+
+        #ifdef RGBLIGHT_ENABLE
+        rgblight_layers = NULL;
+        rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+
+        // The toggle will happen after we return true
+        // So we check the opposite of current state
+        if (!was_enabled) {  // Will be ON after toggle
+            // Flash once for ON - orange flash
+            rgblight_sethsv_noeeprom(20, 255, 255);  // Orange
+            rgblight_set();
+            wait_ms(150);
+            rgblight_sethsv_noeeprom(0, 0, 0);
+            rgblight_set();
+            wait_ms(150);
+        } else {  // Will be OFF after toggle
+            // Flash twice for OFF - orange flashes
+            for (int i = 0; i < 2; i++) {
+                rgblight_sethsv_noeeprom(20, 255, 255);  // Orange
+                rgblight_set();
+                wait_ms(150);
+                rgblight_sethsv_noeeprom(0, 0, 0);
+                rgblight_set();
+                wait_ms(150);
+            }
+        }
+
+        rgblight_layers = my_rgb_layers;
+        layer_state_set_user(layer_state);
+        #endif
+    }
+
     return true;
 }
 

@@ -13,6 +13,10 @@
 #define RGBLIGHT_LAYERS_OVERRIDE_RGB_OFF
 #define RGBLIGHT_MAX_LAYERS 4
 
+// Auto Shift configuration
+#define AUTO_SHIFT_TIMEOUT 175
+#define NO_AUTO_SHIFT_ALPHA  // Do not Auto Shift alpha characters
+
 #if defined(__AVR_ATmega32U4__)
     #undef LOCKING_SUPPORT_ENABLE
     #undef LOCKING_RESYNC_ENABLE
