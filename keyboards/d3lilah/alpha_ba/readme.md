@@ -4,13 +4,17 @@
 
 ![Alpha](https://github.com/JoanDelilahPepin/vial-qmk/blob/vial/keyboards/d3lilah/alpha_ba/alpha_ba.png)
 
-**Original Designer**: [PyroL](https://github.com/PyrooL/Alpha)
-**Variant Designer**: d3lilah
-**Theme**: Elphaba (Wicked)
+- **Keyboard Maintainer**: [d3lilah](https://github.com/JoanDelilahPepin)
+- **Original Alpha Designer**: [PyroL](https://github.com/PyrooL/Alpha)
+- **Hardware Supported**: Original Alpha PCB (v2.1) with Elite-Pi controller
+- **Hardware Availability**: [PyroL/Alpha](https://github.com/PyrooL/Alpha) - PCB files, case files, build guide
+- **Variant Theme**: Elphaba (Wicked musical)
 
 ## About Alpha-BA
 
-The Alpha-BA ("Better Alpha" / "Elpha-BA") is a themed variant of PyroL's original Alpha - a 28-key, semi-ortho keyboard. The name is a playful combination of "Better Alpha" (representing technical improvements) and "Elphaba" (the Wicked Witch of the West from the musical Wicked), reflected in the purple and green color scheme throughout the hardware and firmware.
+The Alpha-BA is a firmware variant for **PyroL's Alpha keyboard**, maintaining full hardware compatibility with the original Alpha PCB. This variant explores what's possible when combining PyroL's innovative 28-key design with the enhanced capabilities of modern RP2040 controllers.
+
+The name "Alpha-BA" is a playful combination of "Better Alpha" (representing technical improvements) and "Elphaba" (the Wicked Witch of the West from the musical Wicked), reflected in the purple and green color scheme throughout the hardware and firmware.
 
 ### What Makes It "BA"
 
@@ -101,6 +105,28 @@ make d3lilah/alpha_ba:vial
 - **Layer 2 (MODS2)**: Function keys, symbols, RGB controls
 - **Layer 3 (OTHER)**: Bootloader, debug functions, macros
 
-## Original Project
+## Original Alpha Project
 
-For build instructions, parts lists, Gerbers, and case files, see [PyrooL/Alpha](https://www.github.com/PyrooL/Alpha).
+**All credit for the Alpha keyboard design goes to [PyroL](https://github.com/PyrooL)**. The Alpha is an innovative 28-key keyboard that challenges conventional keyboard design. This firmware variant aims to enhance PyroL's original vision while maintaining complete hardware compatibility.
+
+For the original project resources:
+- **PCB Files**: [PyrooL/Alpha](https://github.com/PyrooL/Alpha)
+- **Case Designs**: Available in the original repository
+- **Build Guide**: See PyroL's documentation
+- **Community**: Check the 40% Keyboards Discord
+
+## Build Information
+
+Make example for this keyboard (after setting up your build environment):
+
+    make d3lilah/alpha_ba:default
+
+Flashing example for this keyboard:
+
+    make d3lilah/alpha_ba:default:flash
+
+See the [build environment setup](https://docs.qmk.fm/#/getting_started_build_tools) and the [make instructions](https://docs.qmk.fm/#/getting_started_make_guide) for more information. Brand new to QMK? Start with our [Complete Newbs Guide](https://docs.qmk.fm/#/newbs).
+
+## Acknowledgments
+
+Special thanks to PyroL for creating the Alpha keyboard and making it open source. The Alpha-BA variant exists only because of PyroL's original work and commitment to the open hardware community.
