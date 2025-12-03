@@ -3,6 +3,7 @@
 *A themed, RP2040-powered variant of PyroL's Alpha keyboard*
 
 ![Alpha](https://github.com/JoanDelilahPepin/vial-qmk/blob/vial/keyboards/d3lilah/alpha_ba/alpha_ba.png)
+*Photo shows: [Tikiwin's Alpha case design](https://www.thingiverse.com/thing:3487311) printed in purple by [WeirdLittleKeebs](https://www.etsy.com/shop/WeirdLittleKeebs), with GMK Terror Below keycaps (green). Many Alpha case designs are available.*
 
 - **Keyboard Maintainer**: [d3lilah](https://github.com/JoanDelilahPepin)
 - **Original Alpha Designer**: [PyroL](https://github.com/PyrooL/Alpha)
