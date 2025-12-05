@@ -31,7 +31,8 @@
     {"name": "GDOC_H2", "title": "Google Docs H2", "shortName": "GD H2"},
     {"name": "GDOC_H3", "title": "Google Docs H3", "shortName": "GD H3"},
     {"name": "GDOC_NORMAL", "title": "Google Docs Normal", "shortName": "GD Norm"},
-    {"name": "AC_TOGG", "title": "Toggle autocorrect on/off (AC_TOGG)", "shortName": "AC_TG"}
+    {"name": "AC_TOGG", "title": "Toggle autocorrect on/off (AC_TOGG)", "shortName": "AC_TG"},
+    {"name": "DUMP_KM", "title": "Dump Keymap to Console", "shortName": "DumpKM"}
   ],
   "layouts": {
     "labels": [],

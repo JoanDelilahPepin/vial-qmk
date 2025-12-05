@@ -9,15 +9,6 @@
     },
     "processor": "RP2040",
     "bootloader": "rp2040",
-    "features": {
-        "bootmagic": true,
-        "mousekey": true,
-        "extrakey": true,
-        "console": false,
-        "command": false,
-        "nkro": true,
-        "rgblight": true
-    },
     "ws2812": {
         "pin": "GP0",
         "driver": "vendor"
@@ -76,8 +67,8 @@
         ]
     },
     "matrix_pins": {
-        "cols": ["GP2", "GP3", "GP4", "GP5", "GP6", "GP7", "GP8", "GP9", "GP10", "GP11"],
-        "rows": ["GP12", "GP13", "GP14", "GP15"]
+        "cols": ["GP22", "GP20", "GP14", "GP21", "GP15", "GP9", "GP8", "GP4", "GP6", "GP5"],
+        "rows": ["GP29", "GP28", "GP27", "GP26"]
     },
     "diode_direction": "COL2ROW",
     "layouts": {

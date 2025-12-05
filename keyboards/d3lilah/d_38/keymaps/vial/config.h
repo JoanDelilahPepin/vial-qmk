@@ -25,3 +25,14 @@
 #define VIAL_UNLOCK_COMBO_ROWS { 0, 0 }
 #define VIAL_UNLOCK_COMBO_COLS { 0, 0 }
 #define VIAL_INSECURE
+
+// Auto Shift configuration
+#ifdef AUTO_SHIFT_ENABLE
+#define AUTO_SHIFT_TIMEOUT 175
+#define NO_AUTO_SHIFT_ALPHA  // Do not Auto Shift alpha characters
+#endif
+
+// RGB Layer configuration
+#define RGBLIGHT_LAYERS
+#define RGBLIGHT_LAYERS_OVERRIDE_RGB_OFF
+#define RGBLIGHT_MAX_LAYERS 6
