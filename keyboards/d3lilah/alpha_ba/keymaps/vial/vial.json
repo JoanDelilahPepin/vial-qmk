@@ -18,6 +18,11 @@
             "name": "MACRO1",
             "title": ":'(",
             "shortName": "SORRY"
+        },
+        {
+            "name": "HPT_TEST",
+            "title": "Haptic Test",
+            "shortName": "HptTest"
         }
     ],
     "matrix": {
