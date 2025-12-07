@@ -11,7 +11,8 @@
 #define HOME 0
 #define MODS 1
 #define MODS2 2
-#define OTHER 3
+#define UTIL 3
+#define OTHER 4
 
 enum custom_keycodes {
     DUMP_KM = QK_KB_0,
@@ -36,8 +37,13 @@ const rgblight_segment_t PROGMEM layer_2[] = RGBLIGHT_LAYER_SEGMENTS(
     {0, 11, 234, 255, 128}
 );
 
-// Layer 3 (OTHER) - Yellow (HSV: 43)
+// Layer 3 (UTIL) - Red (HSV: 0)
 const rgblight_segment_t PROGMEM layer_3[] = RGBLIGHT_LAYER_SEGMENTS(
+    {0, 11, 0, 255, 128}
+);
+
+// Layer 4 (OTHER) - Yellow (HSV: 43)
+const rgblight_segment_t PROGMEM layer_4[] = RGBLIGHT_LAYER_SEGMENTS(
     {0, 11, 43, 255, 128}
 );
 
@@ -45,7 +51,8 @@ const rgblight_segment_t* const PROGMEM my_rgb_layers[] = RGBLIGHT_LAYERS_LIST(
     layer_0,
     layer_1,
     layer_2,
-    layer_3
+    layer_3,
+    layer_4
 );
 
 // ========== Forward declarations ==========
@@ -486,6 +493,7 @@ layer_state_t layer_state_set_user(layer_state_t state) {
     rgblight_set_layer_state(1, layer_state_cmp(state, 1));
     rgblight_set_layer_state(2, layer_state_cmp(state, 2));
     rgblight_set_layer_state(3, layer_state_cmp(state, 3));
+    rgblight_set_layer_state(4, layer_state_cmp(state, 4));
 
     // Haptic feedback on layer change
     #ifdef HAPTIC_ENABLE
@@ -500,6 +508,9 @@ layer_state_t layer_state_set_user(layer_state_t state) {
                 break;
             case MODS2:
                 drv2605l_pulse(DRV2605L_EFFECT_TRIPLE_CLICK_100);
+                break;
+            case UTIL:
+                drv2605l_pulse(DRV2605L_EFFECT_SOFT_BUMP_100);
                 break;
             case OTHER:
                 drv2605l_pulse(DRV2605L_EFFECT_SHARP_TICK_1_100);
@@ -839,8 +850,13 @@ const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
 
     [MODS2] = LAYOUT(
         KC_F1, KC_F2, KC_F3, KC_F4, KC_F5, KC_F6, KC_F7, KC_F8, KC_F9, KC_F10,
-        KC_LSFT, KC_F11, KC_F12, KC_MINS, KC_EQL, KC_LBRC, KC_RBRC, KC_UP, KC_GRV, TO(3),
+        KC_LSFT, KC_F11, KC_F12, KC_MINS, KC_EQL, KC_LBRC, KC_RBRC, KC_UP, KC_GRV, TO(4),
         UG_VALU, KC_LGUI, KC_LALT, KC_LGUI, UG_NEXT, KC_LEFT, KC_DOWN, KC_RGHT),
+
+    [UTIL] = LAYOUT(
+        KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
+        KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
+        KC_NO, KC_NO, KC_NO, TO(0), KC_NO, KC_NO, KC_NO, KC_NO),
 
     [OTHER] = LAYOUT(
         QK_BOOT, DUMP_KM, KC_NO, KC_NO, KC_NO, KC_NO, HF_ON, HF_TOGG, HF_RST, HPT_TEST,

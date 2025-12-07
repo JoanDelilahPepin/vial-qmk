@@ -12,13 +12,14 @@
 // Use static combos defined in keymap.c instead of Vial's dynamic combos
 #define VIAL_COMBO_DISABLE
 #define VIAL_TAP_DANCE_ENTRIES 16
+#define DYNAMIC_KEYMAP_LAYER_COUNT 5
 #define VIAL_KEY_OVERRIDE_ENTRIES 16
 #define DYNAMIC_KEYMAP_MACRO_COUNT 16
 
 // RGB Layer configuration
 #define RGBLIGHT_LAYERS
 #define RGBLIGHT_LAYERS_OVERRIDE_RGB_OFF
-#define RGBLIGHT_MAX_LAYERS 4
+#define RGBLIGHT_MAX_LAYERS 5
 
 // Auto Shift configuration
 #define AUTO_SHIFT_TIMEOUT 175
