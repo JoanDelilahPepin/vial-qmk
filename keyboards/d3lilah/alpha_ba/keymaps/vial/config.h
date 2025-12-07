@@ -28,20 +28,20 @@
 #define I2C1_SCL_PIN D0
 #define I2C_DRIVER I2CD1
 
-// Haptic feedback - DRV2605L Configuration
-#define DRV2605L_FB_ERM_LRA 0      // 0 = ERM (Eccentric Rotating Mass), 1 = LRA (Linear Resonant Actuator)
-#define DRV2605L_FB_BRAKEFACTOR 3  // For 1x:0, 2x:1, 3x:2, 4x:3, 6x:4, 8x:5, 16x:6, Disable:7
-#define DRV2605L_FB_LOOPGAIN 1     // Low:0, Medium:1, High:2, Very High:3
+// Haptic feedback - DRV2605L Configuration (PUSHING HARD - prototype mode)
+#define DRV2605L_FB_ERM_LRA 0      // 0 = ERM
+#define DRV2605L_FB_BRAKEFACTOR 7  // Disable braking - let it rip
+#define DRV2605L_FB_LOOPGAIN 3     // Very High
 
-// Motor settings - matching your motor specs (3V rated, 85mA)
-#define DRV2605L_RATED_VOLTAGE 3   // Your motor is rated at 3V
-#define DRV2605L_V_PEAK 5          // Peak can be higher for stronger effects
-#define DRV2605L_V_RMS 2           // RMS voltage
-#define DRV2605L_F_LRA 200         // Not used for ERM but defining anyway
+// Motor settings - pancake ERM, MAXIMUM OVERDRIVE
+#define DRV2605L_RATED_VOLTAGE 3   // Rated 3V
+#define DRV2605L_V_PEAK 5.5        // Push peak voltage harder
+#define DRV2605L_LIBRARY 1         // TS2200 Library A (strongest for ERM)
+#define DRV2605L_ERM_OPEN_LOOP 1   // Open loop = no feedback limiting = raw power
 
-// Try using the strong click effect (effect 1)
-#define DRV2605L_GREETING 1         // Play effect 1 on boot
-#define DRV2605L_DEFAULT_MODE 1     // Default to effect 1 (strong click 100%)
+// Use strong buzz effect
+#define DRV2605L_GREETING DRV2605L_EFFECT_STRONG_BUZZ_100
+#define DRV2605L_DEFAULT_MODE DRV2605L_EFFECT_STRONG_BUZZ_100
 
 // Default haptic settings
 #define NO_HAPTIC_MOD               // Disable haptic feedback on modifier keys

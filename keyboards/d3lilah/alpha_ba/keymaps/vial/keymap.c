@@ -5,6 +5,7 @@
 #include "qmk_settings.h"
 #ifdef HAPTIC_ENABLE
 #include "haptic.h"
+#include "drv2605l.h"
 #endif
 
 #define HOME 0
@@ -298,11 +299,36 @@ void dump_all_vial_config(void) {
 }
 
 // ========== Layer State Handling ==========
+static uint8_t previous_layer = 0;
+
 layer_state_t layer_state_set_user(layer_state_t state) {
     rgblight_set_layer_state(0, layer_state_cmp(state, 0));
     rgblight_set_layer_state(1, layer_state_cmp(state, 1));
     rgblight_set_layer_state(2, layer_state_cmp(state, 2));
     rgblight_set_layer_state(3, layer_state_cmp(state, 3));
+
+    // Haptic feedback on layer change
+    #ifdef HAPTIC_ENABLE
+    uint8_t current_layer = get_highest_layer(state);
+    if (current_layer != previous_layer) {
+        switch (current_layer) {
+            case HOME:
+                drv2605l_pulse(DRV2605L_EFFECT_STRONG_CLICK_100);
+                break;
+            case MODS:
+                drv2605l_pulse(DRV2605L_EFFECT_DOUBLE_CLICK_100);
+                break;
+            case MODS2:
+                drv2605l_pulse(DRV2605L_EFFECT_TRIPLE_CLICK_100);
+                break;
+            case OTHER:
+                drv2605l_pulse(DRV2605L_EFFECT_SHARP_TICK_1_100);
+                break;
+        }
+        previous_layer = current_layer;
+    }
+    #endif
+
     return state;
 }
 
@@ -400,6 +426,15 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 // Toggle autocorrect
                 autocorrect_toggle();
 
+                // Haptic feedback: strong buzz ON, short double click OFF
+                #ifdef HAPTIC_ENABLE
+                if (autocorrect_is_enabled()) {
+                    drv2605l_pulse(DRV2605L_EFFECT_STRONG_BUZZ_100);
+                } else {
+                    drv2605l_pulse(DRV2605L_EFFECT_SHORT_DOUBLE_CLICK_STRONG_1_100);
+                }
+                #endif
+
                 #ifdef RGBLIGHT_ENABLE
                 rgblight_layers = NULL;
                 rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
@@ -477,6 +512,16 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         // Get current state before the toggle
         bool was_enabled = get_autoshift_state();
 
+        // Haptic feedback: strong buzz ON, short double click OFF
+        // Toggle happens after we return, so check opposite
+        #ifdef HAPTIC_ENABLE
+        if (!was_enabled) {
+            drv2605l_pulse(DRV2605L_EFFECT_STRONG_BUZZ_100);
+        } else {
+            drv2605l_pulse(DRV2605L_EFFECT_SHORT_DOUBLE_CLICK_STRONG_1_100);
+        }
+        #endif
+
         #ifdef RGBLIGHT_ENABLE
         // Temporarily disable layer indication
         rgblight_layers = NULL;
@@ -522,6 +567,11 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
 
 // ========== Autocorrect Visual Feedback ==========
 bool apply_autocorrect(uint8_t backspaces, const char *str, char *typo, char *correct) {
+    // Strong triple pulse when autocorrect fires
+    #ifdef HAPTIC_ENABLE
+    drv2605l_pulse(DRV2605L_EFFECT_TRIPLE_CLICK_100);
+    #endif
+
     #ifdef RGBLIGHT_ENABLE
     rgblight_layers = NULL;
     rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
