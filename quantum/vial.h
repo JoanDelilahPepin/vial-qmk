@@ -106,8 +106,11 @@ _Static_assert(sizeof(vial_tap_dance_entry_t) == 10, "Unexpected size of the via
 
 
 #ifdef COMBO_ENABLE
+#ifndef VIAL_COMBO_DISABLE
 #define VIAL_COMBO_ENABLE
+#endif
 
+#ifdef VIAL_COMBO_ENABLE
 #ifndef VIAL_COMBO_ENTRIES
     #if TOTAL_EEPROM_BYTE_COUNT > 4000
         #define VIAL_COMBO_ENTRIES 32
@@ -133,10 +136,15 @@ _Static_assert(sizeof(vial_combo_entry_t) == 10, "Unexpected size of the vial_co
 
 #define COMBO_COUNT VIAL_COMBO_ENTRIES
 
+#else // VIAL_COMBO_DISABLE is set - use static combos
+#undef VIAL_COMBO_ENTRIES
+#define VIAL_COMBO_ENTRIES 0
+#endif // VIAL_COMBO_ENABLE
+
 #else
 #undef VIAL_COMBO_ENTRIES
 #define VIAL_COMBO_ENTRIES 0
-#endif
+#endif // COMBO_ENABLE
 
 
 #ifdef KEY_OVERRIDE_ENABLE

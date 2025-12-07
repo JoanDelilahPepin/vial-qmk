@@ -9,7 +9,8 @@
 #define VIAL_INSECURE
 
 // Vial configuration for combos, tap dances, etc.
-#define VIAL_COMBO_ENTRIES 32
+// Use static combos defined in keymap.c instead of Vial's dynamic combos
+#define VIAL_COMBO_DISABLE
 #define VIAL_TAP_DANCE_ENTRIES 16
 #define VIAL_KEY_OVERRIDE_ENTRIES 16
 #define DYNAMIC_KEYMAP_MACRO_COUNT 16

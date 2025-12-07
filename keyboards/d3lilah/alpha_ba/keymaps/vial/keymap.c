@@ -61,6 +61,191 @@ void dump_tap_dances_as_c(void);
 void dump_key_overrides_as_c(void);
 #endif
 void dump_all_vial_config(void);
+void print_keycode(uint16_t kc);
+
+// ========== Keycode Translation ==========
+// Basic keycodes lookup table
+static const char* const PROGMEM basic_keycodes[] = {
+    // 0x00-0x03: Reserved
+    "KC_NO", "KC_TRNS", "KC_POST_FAIL", "KC_UNDEFINED",
+    // 0x04-0x1D: Letters A-Z
+    "KC_A", "KC_B", "KC_C", "KC_D", "KC_E", "KC_F", "KC_G", "KC_H", "KC_I", "KC_J",
+    "KC_K", "KC_L", "KC_M", "KC_N", "KC_O", "KC_P", "KC_Q", "KC_R", "KC_S", "KC_T",
+    "KC_U", "KC_V", "KC_W", "KC_X", "KC_Y", "KC_Z",
+    // 0x1E-0x27: Numbers 1-0
+    "KC_1", "KC_2", "KC_3", "KC_4", "KC_5", "KC_6", "KC_7", "KC_8", "KC_9", "KC_0",
+    // 0x28-0x38: Common keys
+    "KC_ENT", "KC_ESC", "KC_BSPC", "KC_TAB", "KC_SPC",
+    "KC_MINS", "KC_EQL", "KC_LBRC", "KC_RBRC", "KC_BSLS",
+    "KC_NUHS", "KC_SCLN", "KC_QUOT", "KC_GRV", "KC_COMM", "KC_DOT", "KC_SLSH",
+    // 0x39: Caps Lock
+    "KC_CAPS",
+    // 0x3A-0x45: F1-F12
+    "KC_F1", "KC_F2", "KC_F3", "KC_F4", "KC_F5", "KC_F6",
+    "KC_F7", "KC_F8", "KC_F9", "KC_F10", "KC_F11", "KC_F12",
+    // 0x46-0x4E: Print Screen through Insert
+    "KC_PSCR", "KC_SCRL", "KC_PAUS", "KC_INS", "KC_HOME", "KC_PGUP",
+    "KC_DEL", "KC_END", "KC_PGDN",
+    // 0x4F-0x52: Arrow keys
+    "KC_RGHT", "KC_LEFT", "KC_DOWN", "KC_UP"
+};
+
+// Modifier keycodes (0xE0-0xE7)
+static const char* const PROGMEM mod_keycodes[] = {
+    "KC_LCTL", "KC_LSFT", "KC_LALT", "KC_LGUI",
+    "KC_RCTL", "KC_RSFT", "KC_RALT", "KC_RGUI"
+};
+
+// Print a keycode as readable string
+void print_keycode(uint16_t kc) {
+    // KC_NO
+    if (kc == KC_NO) {
+        uprintf("XXXXXXX");
+        return;
+    }
+    // KC_TRNS
+    if (kc == KC_TRNS) {
+        uprintf("_______");
+        return;
+    }
+
+    // Basic keycodes (0x04-0x52)
+    if (kc >= 0x04 && kc <= 0x52) {
+        uprintf("%s", basic_keycodes[kc]);
+        return;
+    }
+
+    // Modifier keycodes (0xE0-0xE7)
+    if (kc >= 0xE0 && kc <= 0xE7) {
+        uprintf("%s", mod_keycodes[kc - 0xE0]);
+        return;
+    }
+
+    // Layer-Tap: LT(layer, kc) = 0x4000 | (layer << 8) | kc
+    // Actually LT uses 0x4000-0x4FFF with layer in bits 8-11
+    // Wait, that conflicts with MT. Let me check the actual ranges:
+    // QK_LAYER_TAP = 0x4000, max = 0x4FFF (layer 0-15, kc 0-255)
+    // But MT also starts at 0x4000? No, MT uses different encoding.
+    // Actually: LT = 0x4000-0x4FFF, MT = 0x2000-0x3FFF? Let me verify...
+    // From quantum/keycodes.h:
+    // QK_MOD_TAP = 0x2000 (through 0x3FFF)
+    // QK_LAYER_TAP = 0x4000 (through 0x4FFF)
+
+    // Mod-Tap: MT(mod, kc) = 0x2000 | (mod << 8) | kc
+    if (kc >= 0x2000 && kc < 0x4000) {
+        uint8_t mod = (kc >> 8) & 0x1F;
+        uint8_t base = kc & 0xFF;
+        uprintf("MT(0x%02X, ", mod);
+        print_keycode(base);
+        uprintf(")");
+        return;
+    }
+
+    // Layer-Tap: LT(layer, kc) = 0x4000 | (layer << 8) | kc
+    if (kc >= 0x4000 && kc < 0x5000) {
+        uint8_t layer = (kc >> 8) & 0x0F;
+        uint8_t base = kc & 0xFF;
+        uprintf("LT(%d, ", layer);
+        print_keycode(base);
+        uprintf(")");
+        return;
+    }
+
+    // TO(layer) = 0x5200 | layer
+    if (kc >= 0x5200 && kc < 0x5210) {
+        uprintf("TO(%d)", kc & 0x0F);
+        return;
+    }
+
+    // MO(layer) = 0x5220 | layer
+    if (kc >= 0x5220 && kc < 0x5230) {
+        uprintf("MO(%d)", kc & 0x0F);
+        return;
+    }
+
+    // TG(layer) = 0x5280 | layer
+    if (kc >= 0x5280 && kc < 0x5290) {
+        uprintf("TG(%d)", kc & 0x0F);
+        return;
+    }
+
+    // OSL(layer) = 0x52A0 | layer
+    if (kc >= 0x52A0 && kc < 0x52B0) {
+        uprintf("OSL(%d)", kc & 0x0F);
+        return;
+    }
+
+    // QK_BOOT = 0x7C00
+    if (kc == 0x7C00) {
+        uprintf("QK_BOOT");
+        return;
+    }
+
+    // RGB/Underglow keycodes (0x7800-0x78FF)
+    if (kc >= 0x7800 && kc < 0x7900) {
+        switch (kc) {
+            case 0x7820: uprintf("UG_TOGG"); return;
+            case 0x7821: uprintf("UG_NEXT"); return;
+            case 0x7822: uprintf("UG_PREV"); return;
+            case 0x7823: uprintf("UG_HUEU"); return;
+            case 0x7824: uprintf("UG_HUED"); return;
+            case 0x7825: uprintf("UG_SATU"); return;
+            case 0x7826: uprintf("UG_SATD"); return;
+            case 0x7827: uprintf("UG_VALU"); return;
+            case 0x7828: uprintf("UG_VALD"); return;
+            case 0x7829: uprintf("UG_SPDU"); return;
+            case 0x782A: uprintf("UG_SPDD"); return;
+        }
+    }
+
+    // Media keys
+    if (kc >= 0x00A5 && kc <= 0x00CF) {
+        switch (kc) {
+            case 0x00A5: uprintf("KC_MPLY"); return;
+            case 0x00A6: uprintf("KC_MSTP"); return;
+            case 0x00A7: uprintf("KC_MPRV"); return;
+            case 0x00A8: uprintf("KC_MNXT"); return;
+            case 0x00A9: uprintf("KC_MUTE"); return;
+            case 0x00AA: uprintf("KC_VOLU"); return;
+            case 0x00AB: uprintf("KC_VOLD"); return;
+        }
+    }
+
+    // Custom keycodes (QK_KB range 0x7E00-0x7EFF)
+    if (kc >= 0x7E00 && kc < 0x7F00) {
+        uint8_t idx = kc - 0x7E00;
+        switch (idx) {
+            case 0: uprintf("DUMP_KM"); return;
+            case 1: uprintf("AC_TOG"); return;
+            case 2: uprintf("MACRO1"); return;
+            case 3: uprintf("HPT_TEST"); return;
+        }
+        uprintf("QK_KB_%d", idx);
+        return;
+    }
+
+    // Haptic keycodes (0x7C40-0x7C5F)
+    if (kc >= 0x7C40 && kc < 0x7C60) {
+        switch (kc) {
+            case 0x7C42: uprintf("HPT_ON"); return;
+            case 0x7C43: uprintf("HPT_OFF"); return;
+            case 0x7C44: uprintf("HPT_TOG"); return;
+            case 0x7C45: uprintf("HPT_RST"); return;
+            case 0x7C46: uprintf("HPT_FBK"); return;
+            case 0x7C47: uprintf("HPT_BUZ"); return;
+            case 0x7C48: uprintf("HPT_MODI"); return;
+            case 0x7C49: uprintf("HPT_MODD"); return;
+            case 0x7C4A: uprintf("HPT_CONT"); return;
+            case 0x7C4B: uprintf("HPT_CONI"); return;
+            case 0x7C4C: uprintf("HPT_COND"); return;
+            case 0x7C4D: uprintf("HPT_DWLI"); return;
+            case 0x7C4E: uprintf("HPT_DWLD"); return;
+        }
+    }
+
+    // Fallback to hex for unknown keycodes
+    uprintf("0x%04X", kc);
+}
 
 // ========== Keymap Dump Function ==========
 void dump_keymap_as_c(void) {
@@ -76,16 +261,7 @@ void dump_keymap_as_c(void) {
             uprintf("        ");
             for (uint8_t col = 0; col < MATRIX_COLS; col++) {
                 uint16_t kc = dynamic_keymap_get_keycode(layer, row, col);
-
-                // Convert common keycodes to readable format
-                if (kc == KC_NO) {
-                    uprintf("XXXXXXX");
-                } else if (kc == KC_TRNS) {
-                    uprintf("_______");
-                } else {
-                    uprintf("0x%04X", kc);
-                }
-
+                print_keycode(kc);
                 if (col < MATRIX_COLS - 1) uprintf(", ");
             }
             if (row < MATRIX_ROWS - 1) {
@@ -179,13 +355,17 @@ void dump_combos_as_c(void) {
         if (dynamic_keymap_get_combo(i, &combo_entry) == 0) {
             if (combo_entry.input[0] != 0 || combo_entry.output != 0) {
                 uprintf("// Combo %d:\n", i);
-                uprintf("// Input keys: 0x%04X", combo_entry.input[0]);
+                uprintf("// Input: ");
+                print_keycode(combo_entry.input[0]);
                 for (uint8_t j = 1; j < 4; j++) {
                     if (combo_entry.input[j] != 0) {
-                        uprintf(", 0x%04X", combo_entry.input[j]);
+                        uprintf(" + ");
+                        print_keycode(combo_entry.input[j]);
                     }
                 }
-                uprintf("\n// Output: 0x%04X\n\n", combo_entry.output);
+                uprintf("\n// Output: ");
+                print_keycode(combo_entry.output);
+                uprintf("\n\n");
             }
         }
     }
@@ -221,10 +401,10 @@ void dump_tap_dances_as_c(void) {
             if (td_entry.on_tap != 0 || td_entry.on_hold != 0 ||
                 td_entry.on_double_tap != 0 || td_entry.on_tap_hold != 0) {
                 uprintf("// Tap Dance %d:\n", i);
-                uprintf("// On Tap: 0x%04X\n", td_entry.on_tap);
-                uprintf("// On Hold: 0x%04X\n", td_entry.on_hold);
-                uprintf("// On Double Tap: 0x%04X\n", td_entry.on_double_tap);
-                uprintf("// On Tap-Hold: 0x%04X\n", td_entry.on_tap_hold);
+                uprintf("// On Tap: "); print_keycode(td_entry.on_tap); uprintf("\n");
+                uprintf("// On Hold: "); print_keycode(td_entry.on_hold); uprintf("\n");
+                uprintf("// On Double Tap: "); print_keycode(td_entry.on_double_tap); uprintf("\n");
+                uprintf("// On Tap-Hold: "); print_keycode(td_entry.on_tap_hold); uprintf("\n");
                 uprintf("// Tapping Term: %d\n\n", td_entry.custom_tapping_term);
             }
         }
@@ -259,8 +439,8 @@ void dump_key_overrides_as_c(void) {
         if (dynamic_keymap_get_key_override(i, &ko_entry) == 0) {
             if (ko_entry.trigger != 0 || ko_entry.replacement != 0) {
                 uprintf("// Key Override %d:\n", i);
-                uprintf("// Trigger: 0x%04X\n", ko_entry.trigger);
-                uprintf("// Replacement: 0x%04X\n", ko_entry.replacement);
+                uprintf("// Trigger: "); print_keycode(ko_entry.trigger); uprintf("\n");
+                uprintf("// Replacement: "); print_keycode(ko_entry.replacement); uprintf("\n");
                 uprintf("// Layers: 0x%04X\n", ko_entry.layers);
                 uprintf("// Mods: 0x%02X\n", ko_entry.trigger_mods);
                 uprintf("// Options: 0x%02X\n\n", ko_entry.options);
@@ -607,25 +787,63 @@ bool shutdown_user(bool jump_to_bootloader) {
     return true;
 }
 
+// ========== Static Combos (compiled in, Vial combos disabled) ==========
+const uint16_t PROGMEM combo_enter[] = {KC_L, KC_SCLN, COMBO_END};
+const uint16_t PROGMEM combo_comma[] = {KC_B, KC_N, COMBO_END};
+const uint16_t PROGMEM combo_dot[] = {KC_N, KC_M, COMBO_END};
+const uint16_t PROGMEM combo_lshift[] = {KC_A, KC_S, COMBO_END};
+const uint16_t PROGMEM combo_esc[] = {KC_A, KC_Q, COMBO_END};
+const uint16_t PROGMEM combo_bspc[] = {KC_P, KC_O, COMBO_END};
+const uint16_t PROGMEM combo_rshift[] = {KC_K, KC_L, KC_SCLN, COMBO_END};
+const uint16_t PROGMEM combo_tab[] = {KC_Q, KC_W, COMBO_END};
+const uint16_t PROGMEM combo_lctl[] = {KC_S, KC_D, COMBO_END};
+const uint16_t PROGMEM combo_lalt[] = {KC_D, KC_F, COMBO_END};
+const uint16_t PROGMEM combo_lgui[] = {KC_F, KC_G, COMBO_END};
+const uint16_t PROGMEM combo_rgui[] = {KC_H, KC_J, COMBO_END};
+const uint16_t PROGMEM combo_ralt[] = {KC_J, KC_K, COMBO_END};
+const uint16_t PROGMEM combo_rctl[] = {KC_K, KC_L, COMBO_END};
+const uint16_t PROGMEM combo_bsls[] = {KC_P, KC_SCLN, COMBO_END};
+const uint16_t PROGMEM combo_capsword[] = {KC_A, KC_S, KC_D, COMBO_END};  // 0x7C73 = CW_TOGG
+
+combo_t key_combos[] = {
+    COMBO(combo_enter, KC_ENT),      // L + ;
+    COMBO(combo_comma, KC_COMM),     // B + N
+    COMBO(combo_dot, KC_DOT),        // N + M
+    COMBO(combo_lshift, KC_LSFT),    // A + S
+    COMBO(combo_esc, KC_ESC),        // A + Q
+    COMBO(combo_bspc, KC_BSPC),      // P + O
+    COMBO(combo_rshift, KC_RSFT),    // K + L + ;
+    COMBO(combo_tab, KC_TAB),        // Q + W
+    COMBO(combo_lctl, KC_LCTL),      // S + D
+    COMBO(combo_lalt, KC_LALT),      // D + F
+    COMBO(combo_lgui, KC_LGUI),      // F + G
+    COMBO(combo_rgui, KC_RGUI),      // H + J
+    COMBO(combo_ralt, KC_RALT),      // J + K
+    COMBO(combo_rctl, KC_RCTL),      // K + L
+    COMBO(combo_bsls, KC_BSLS),      // P + ;
+    COMBO(combo_capsword, CW_TOGG),  // A + S + D
+};
+
 // ========== Keymaps ==========
+// LAYOUT is 28 keys: 10-10-8 (row 2 has positions 4 and 6 as phantom in matrix)
 const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
     [HOME] = LAYOUT(
         KC_Q, KC_W, KC_E, KC_R, KC_T, KC_Y, KC_U, KC_I, KC_O, KC_P,
-        KC_A, KC_S, KC_D, KC_F, KC_G, KC_H, KC_J, KC_K, KC_L, TO(1),
-        KC_Z, KC_X, KC_C, KC_V, MT(MOD_LSFT, KC_SPC), KC_B, KC_N, KC_M),
+        KC_A, KC_S, KC_D, KC_F, KC_G, KC_H, KC_J, KC_K, KC_L, KC_SCLN,
+        LT(2, KC_Z), KC_X, KC_C, KC_V, LT(1, KC_SPC), KC_B, KC_N, KC_M),
 
     [MODS] = LAYOUT(
         KC_1, KC_2, KC_3, KC_4, KC_5, KC_6, KC_7, KC_8, KC_9, KC_0,
-        KC_BSPC, KC_ESC, KC_TAB, KC_SCLN, KC_QUOT, KC_LEFT, KC_DOWN, KC_UP, KC_RGHT, TO(2),
-        KC_LCTL, KC_LGUI, KC_LALT, TO(0), MT(MOD_LSFT, KC_ENT), KC_COMM, KC_DOT, KC_SLSH),
+        KC_TAB, KC_ESC, KC_TAB, KC_SCLN, KC_QUOT, KC_MINS, KC_EQL, KC_LBRC, KC_RBRC, KC_BSLS,
+        KC_LCTL, KC_LCTL, KC_LALT, KC_LGUI, MT(MOD_LSFT, KC_ENT), KC_SCLN, KC_QUOT, KC_SLSH),
 
     [MODS2] = LAYOUT(
         KC_F1, KC_F2, KC_F3, KC_F4, KC_F5, KC_F6, KC_F7, KC_F8, KC_F9, KC_F10,
-        KC_LSFT, KC_F11, KC_F12, KC_MINS, KC_EQL, KC_LBRC, KC_RBRC, KC_BSLS, KC_GRV, TO(3),
-        UG_VALU, UG_VALD, UG_HUEU, TO(0), UG_NEXT, KC_MPLY, KC_VOLD, KC_VOLU),
+        KC_LSFT, KC_F11, KC_F12, KC_MINS, KC_EQL, KC_LBRC, KC_RBRC, KC_UP, KC_GRV, TO(3),
+        UG_VALU, KC_LGUI, KC_LALT, KC_LGUI, UG_NEXT, KC_LEFT, KC_DOWN, KC_RGHT),
 
     [OTHER] = LAYOUT(
-        QK_BOOT, DUMP_KM, AC_TOG, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
-        KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
-        KC_NO, KC_NO, KC_NO, TO(0), MACRO1, KC_NO, KC_NO, KC_NO),
+        QK_BOOT, DUMP_KM, KC_NO, KC_NO, KC_NO, KC_NO, HF_ON, HF_TOGG, HF_RST, HPT_TEST,
+        KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, HF_BUZZ, HF_FDBK, HF_CONT, HF_PREV,
+        KC_NO, KC_NO, KC_NO, TO(0), AC_TOG, HF_NEXT, HF_COND, HF_CONU),
 };
