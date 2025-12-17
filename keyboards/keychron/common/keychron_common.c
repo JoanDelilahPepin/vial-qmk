@@ -29,6 +29,10 @@
 #endif
 
 #ifdef LK_WIRELESS_ENABLE
+#    include "transport.h"
+#endif
+
+#ifdef LK_WIRELESS_ENABLE
 #    include "lkbt51.h"
 #endif
 
@@ -182,9 +186,19 @@ void get_support_feature(uint8_t *data) {
         ;
 }
 
+// Visual debug: track command counts for LED indication
+static uint8_t debug_cmd_count = 0;
+static uint8_t debug_vial_count = 0;
+
+// Called from rgb_matrix_indicators_user to show debug state
+void keychron_debug_rgb_indicator(void) {
+    // Debug indicators removed - transport switching working
+}
+
 bool kc_raw_hid_rx(uint8_t *data, uint8_t length) {
-    // if (!raw_hid_receive_keychron(data, length))
-    //     return false;
+    // Visual debug: increment command counter
+    if (debug_cmd_count < 4) debug_cmd_count++;
+
     switch (data[0]) {
         case kc_get_protocol_version:
             data[1] = PROTOCOL_VERSION;
@@ -240,7 +254,14 @@ bool kc_raw_hid_rx(uint8_t *data, uint8_t length) {
 
 #if defined(VIA_ENABLE)
 bool via_command_kb(uint8_t *data, uint8_t length) {
-    return kc_raw_hid_rx(data, length);
+    bool handled = kc_raw_hid_rx(data, length);
+
+    // Visual debug: count VIAL commands (0xFE)
+    if (!handled && data[0] == 0xFE) {
+        if (debug_vial_count < 4) debug_vial_count++;
+    }
+
+    return handled;
 }
 #else
 void raw_hid_receive(uint8_t *data, uint8_t length) {

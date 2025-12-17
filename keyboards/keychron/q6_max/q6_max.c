@@ -1,4 +1,4 @@
-/* Copyright 2024 ~ 2025 @ Keychron (https://www.keychron.com)
+/* Copyright 2024 @ Keychron (https://www.keychron.com)
  *
  * This program is free software : you can redistribute it and /or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #    include "wireless.h"
 #    include "keychron_wireless_common.h"
 #    include "battery.h"
+#    include "transport.h"
 #endif
 
 #define POWER_ON_LED_DURATION 3000
@@ -43,8 +44,9 @@ bool dip_switch_update_kb(uint8_t index, bool active) {
 
 void keyboard_post_init_kb(void) {
 #ifdef LK_WIRELESS_ENABLE
-    palSetLineMode(P24G_MODE_SELECT_PIN, PAL_MODE_INPUT_PULLUP);
-    palSetLineMode(BT_MODE_SELECT_PIN,   PAL_MODE_INPUT_PULLUP);
+    // P24G floats HIGH naturally, BT pin needs pull-up to float HIGH
+    palSetLineMode(P24G_MODE_SELECT_PIN, PAL_MODE_INPUT);
+    palSetLineMode(BT_MODE_SELECT_PIN, PAL_MODE_INPUT_PULLUP);
 
     gpio_write_pin(BAT_LOW_LED_PIN, BAT_LOW_LED_PIN_ON_STATE);
 

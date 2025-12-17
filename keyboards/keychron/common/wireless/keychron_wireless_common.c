@@ -120,7 +120,7 @@ void keychron_wireless_common_task(void) {
 }
 
 void wireless_pre_task(void) {
-    static uint8_t  dip_switch_state = 0;
+    static uint8_t  mode = 0;
     static uint32_t time = 0;
 
     if (time == 0) {
@@ -130,8 +130,8 @@ void wireless_pre_task(void) {
 #    endif
             ;
 
-        if (pins_state != dip_switch_state) {
-            dip_switch_state = pins_state;
+        if (pins_state != mode) {
+            mode = pins_state;
             time = timer_read32();
         }
     }
@@ -143,29 +143,47 @@ void wireless_pre_task(void) {
 #    endif
             ;
 
-        if (pins_state == dip_switch_state) {
+        if (pins_state == mode) {
             time = 0;
 
-            switch (dip_switch_state) {
+            switch (mode) {
 #    ifndef P24G_MODE_SELECT_PIN
                 case 0x00:
                     set_transport(TRANSPORT_BLUETOOTH);
                     break;
 #    else
+                case 0x00:
+                    // 2.4G position (P24G pin LOW)
+                    set_transport(TRANSPORT_P2P4);
+                    break;
                 case 0x01:
-                    set_transport(TRANSPORT_BLUETOOTH);
+                    // USB/BT position - use USB power to determine
+                    // Always check and switch based on USB power state
+                    set_transport(usb_power_connected() ? TRANSPORT_USB : TRANSPORT_BLUETOOTH);
                     break;
                 case 0x02:
                     set_transport(TRANSPORT_P2P4);
                     break;
+                case 0x03:
+                    set_transport(TRANSPORT_USB);
+                    break;
 #    endif
                 default:
-                    set_transport(TRANSPORT_USB);
                     break;
             }
         } else {
-            dip_switch_state = pins_state;
+            mode = pins_state;
             time = timer_read32();
+        }
+    }
+
+    // Continuously monitor USB power when in USB/BT position (mode 0x01)
+    // This allows hot-switching between USB and BT based on cable connection
+    if (mode == 0x01) {
+        transport_t current = get_transport();
+        transport_t desired = usb_power_connected() ? TRANSPORT_USB : TRANSPORT_BLUETOOTH;
+        if (current != desired) {
+            set_transport(desired);
         }
     }
 }

@@ -20,7 +20,8 @@
     {"name": "BT_HST2", "title": "Bluetooth Host 2", "shortName": "BT2"},
     {"name": "BT_HST3", "title": "Bluetooth Host 3", "shortName": "BT3"},
     {"name": "P2P4G", "title": "2.4G Dongle", "shortName": "2.4G"},
-    {"name": "BAT_LVL", "title": "Battery Level", "shortName": "BAT"}
+    {"name": "BAT_LVL", "title": "Battery Level", "shortName": "BAT"},
+    {"name": "AC_TOG", "title": "Toggle Autocorrect", "shortName": "AC Tog"}
   ],
   "layouts": {
     "keymap": [

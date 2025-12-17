@@ -1,4 +1,4 @@
-/* Copyright 2024 ~ 2025 @ Keychron (https://www.keychron.com)
+/* Copyright 2024 @ Keychron (https://www.keychron.com)
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -53,11 +53,11 @@
 
 #    define BT_HOST_DEVICES_COUNT 3
 
-#    if defined(RGB_MATRIX_ENABLE)
+#    if defined(RGB_MATRIX_ENABLE) || defined(LED_MATRIX_ENABLE)
 
-#        define P24G_INDICATION_LED_MATRIX_INDEX 23
 #        define BT_INDCATION_LED_MATRIX_LIST \
             { 20, 21, 22 }
+#        define P24G_INDICATION_LED_MATRIX_INDEX 23
 #        define BAT_LEVEL_LED_LIST \
             { 20, 21, 22, 23, 24, 25, 26, 27, 28, 29 }
 
@@ -67,11 +67,17 @@
 #        define CONNECTED_BACKLIGHT_DISABLE_TIMEOUT 600
 /* Reinit LED driver on tranport changed */
 #        define REINIT_LED_DRIVER 1
+
 #    endif
 
-/* Keep USB connection in wireless mode */
+/* Keep USB connection in blueooth mode */
 #    define KEEP_USB_CONNECTION_IN_WIRELESS_MODE
 
+/* Raw hid command for factory test and bluetooth DFU */
+#    define RAW_HID_CMD 0xAA ... 0xAB
+#else
+/* Raw hid command for factory test */
+#    define RAW_HID_CMD 0xAB
 #endif
 
 /* Factory test keys */
