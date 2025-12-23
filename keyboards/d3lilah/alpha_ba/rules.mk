@@ -1,1 +1,1 @@
-CONVERT_TO = elite_pi
+# Native RP2040 configuration - no CONVERT_TO needed

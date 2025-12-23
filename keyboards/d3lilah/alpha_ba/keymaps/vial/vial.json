@@ -23,6 +23,21 @@
             "name": "HPT_TEST",
             "title": "Haptic Test",
             "shortName": "HptTest"
+        },
+        {
+            "name": "SOL_TOG",
+            "title": "Toggle Solenoid",
+            "shortName": "Sol Tog"
+        },
+        {
+            "name": "SOL_UP",
+            "title": "Solenoid Harder",
+            "shortName": "Sol Up"
+        },
+        {
+            "name": "SOL_DN",
+            "title": "Solenoid Softer",
+            "shortName": "Sol Dn"
         }
     ],
     "matrix": {

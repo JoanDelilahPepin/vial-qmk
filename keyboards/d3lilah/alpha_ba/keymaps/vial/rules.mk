@@ -12,6 +12,9 @@ CAPS_WORD_ENABLE = yes
 LAYER_LOCK_ENABLE = no
 REPEAT_KEY_ENABLE = no
 
-# Haptic feedback
+# Haptic feedback - using solenoid instead of DRV2605L
 HAPTIC_ENABLE = yes
-HAPTIC_DRIVER = drv2605l
+HAPTIC_DRIVER = solenoid
+
+# Solenoid support (requires deferred execution for precise timing)
+DEFERRED_EXEC_ENABLE = yes

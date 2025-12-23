@@ -2,6 +2,9 @@
   "keyboard_name": "Alpha-BA",
   "manufacturer": "d3lilah",
   "maintainer": "d3lilah",
+  "processor": "RP2040",
+  "bootloader": "rp2040",
+  "board": "GENERIC_RP_RP2040",
   "usb": {
     "vid": "0xFEED",
     "pid": "0x6060",
@@ -25,7 +28,8 @@
     }
   },
   "ws2812": {
-    "pin": "F4"  // Maps to GP5 on Elite-Pi via CONVERT_TO
+    "pin": "GP29",
+    "driver": "vendor"
   },
   "features": {
     "bootmagic": true,
@@ -41,8 +45,8 @@
     }
   },
   "matrix_pins": {
-    "cols": ["D7", "E6", "C6", "B6", "B2", "B3", "B1", "F7", "F6", "F5"],
-    "rows": ["D4", "B4", "B5"]
+    "cols": ["GP6", "GP7", "GP5", "GP21", "GP23", "GP20", "GP22", "GP26", "GP27", "GP28"],
+    "rows": ["GP4", "GP8", "GP9"]
   },
   "diode_direction": "COL2ROW",
   "layouts": {

@@ -5,8 +5,12 @@
 #include "qmk_settings.h"
 #ifdef HAPTIC_ENABLE
 #include "haptic.h"
-#include "drv2605l.h"
+// #include "drv2605l.h" // COMMENTED OUT - using solenoid haptic driver
 #endif
+#include "gpio.h"
+#include "deferred_exec.h"
+#include "eeprom.h"
+#include "eeconfig.h"
 
 #define HOME 0
 #define MODS 1
@@ -18,7 +22,12 @@ enum custom_keycodes {
     DUMP_KM = QK_KB_0,
     AC_TOG,
     MACRO1,
-    HPT_TEST  // Haptic test keycode
+    HPT_TEST   // Haptic test keycode
+    // Custom solenoid keys commented out - using QMK's haptic system
+    // SOL_TOG,   // Toggle solenoid on/off
+    // SOL_UP,    // Increase solenoid dwell (harder click)
+    // SOL_DN,    // Decrease solenoid dwell (softer click)
+    // SOL_TEST   // Test solenoid directly
 };
 
 // ========== RGB Layer Definitions ==========
@@ -495,25 +504,32 @@ layer_state_t layer_state_set_user(layer_state_t state) {
     rgblight_set_layer_state(3, layer_state_cmp(state, 3));
     rgblight_set_layer_state(4, layer_state_cmp(state, 4));
 
-    // Haptic feedback on layer change
+    // Haptic feedback on layer change (using solenoid)
     #ifdef HAPTIC_ENABLE
     uint8_t current_layer = get_highest_layer(state);
     if (current_layer != previous_layer) {
+        // Different click patterns for different layers
         switch (current_layer) {
             case HOME:
-                drv2605l_pulse(DRV2605L_EFFECT_STRONG_CLICK_100);
+                haptic_play();  // Single click
                 break;
             case MODS:
-                drv2605l_pulse(DRV2605L_EFFECT_DOUBLE_CLICK_100);
+                haptic_play();  // Double click
+                wait_ms(50);
+                haptic_play();
                 break;
             case MODS2:
-                drv2605l_pulse(DRV2605L_EFFECT_TRIPLE_CLICK_100);
+                haptic_play();  // Triple click
+                wait_ms(50);
+                haptic_play();
+                wait_ms(50);
+                haptic_play();
                 break;
             case UTIL:
-                drv2605l_pulse(DRV2605L_EFFECT_SOFT_BUMP_100);
+                haptic_play();  // Soft single click
                 break;
             case OTHER:
-                drv2605l_pulse(DRV2605L_EFFECT_SHARP_TICK_1_100);
+                haptic_play();  // Sharp single click
                 break;
         }
         previous_layer = current_layer;
@@ -528,35 +544,161 @@ layer_state_t default_layer_state_set_user(layer_state_t state) {
     return state;
 }
 
+// =============================================================================
+// CUSTOM SOLENOID CODE (COMMENTED OUT - using QMK's official haptic solenoid)
+// =============================================================================
+/*
+static bool solenoid_enabled;
+static uint8_t solenoid_dwell;
+static deferred_token solenoid_token = INVALID_DEFERRED_TOKEN;
+static uint16_t last_solenoid_time = 0;
+
+// EEPROM storage structure
+typedef struct {
+    bool enabled;
+    uint8_t dwell;
+} solenoid_config_t;
+
+// EEPROM functions
+void solenoid_config_save(void) {
+    solenoid_config_t config = {
+        .enabled = solenoid_enabled,
+        .dwell = solenoid_dwell
+    };
+    eeconfig_update_user_datablock(&config, 0, sizeof(solenoid_config_t));
+}
+
+void solenoid_config_load(void) {
+    solenoid_config_t config;
+    eeconfig_read_user_datablock(&config, 0, sizeof(solenoid_config_t));
+
+    // Validate stored values — handles first run or corrupted EEPROM
+    if (config.dwell < SOLENOID_DWELL_MIN || config.dwell > SOLENOID_DWELL_MAX) {
+        solenoid_enabled = SOLENOID_ENABLED_DEFAULT;
+        solenoid_dwell = SOLENOID_DWELL_DEFAULT;
+        solenoid_config_save();
+    } else {
+        solenoid_enabled = config.enabled;
+        solenoid_dwell = config.dwell;
+    }
+}
+
+// Called when EEPROM is reset
+void eeconfig_init_user(void) {
+    solenoid_enabled = SOLENOID_ENABLED_DEFAULT;
+    solenoid_dwell = SOLENOID_DWELL_DEFAULT;
+    solenoid_config_save();
+}
+
+// Solenoid control functions
+uint32_t solenoid_off_callback(uint32_t trigger_time, void *cb_arg) {
+    writePinLow(SOLENOID_PIN);
+    return 0;  // Don't repeat
+}
+
+void solenoid_pulse(void) {
+    if (!solenoid_enabled) return;
+
+    // Debounce to prevent rapid fire
+    uint16_t current_time = timer_read();
+    if (timer_elapsed(last_solenoid_time) < SOLENOID_DEBOUNCE_MS) {
+        return;
+    }
+
+    // Cancel any pending off-callback
+    if (solenoid_token != INVALID_DEFERRED_TOKEN) {
+        cancel_deferred_exec(solenoid_token);
+    }
+
+    writePinHigh(SOLENOID_PIN);
+    solenoid_token = defer_exec(solenoid_dwell, solenoid_off_callback, NULL);
+    last_solenoid_time = current_time;
+
+    // Visual debug indicator - pink flash when solenoid fires
+    #ifdef RGBLIGHT_ENABLE
+    rgblight_sethsv_noeeprom(234, 255, 255);  // Pink flash
+    wait_ms(20);  // Longer flash to see clearly
+    layer_state_set_user(layer_state);  // Restore layer color
+    #endif
+}
+
+// Check if we should fire the solenoid for this keycode
+static bool should_fire_solenoid(uint16_t keycode, keyrecord_t *record) {
+    // Only on key press, not release
+    if (!record->event.pressed) return false;
+
+    // Check if solenoid is enabled
+    if (!solenoid_enabled) return false;
+
+    // Exclude modifiers
+    if (keycode >= KC_LCTL && keycode <= KC_RGUI) return false;
+
+    // Exclude layer keys
+    if ((keycode >= QK_LAYER_TAP && keycode <= QK_LAYER_TAP_MAX) ||
+        (keycode >= QK_TO && keycode <= QK_TO_MAX) ||
+        (keycode >= QK_MOMENTARY && keycode <= QK_MOMENTARY_MAX) ||
+        (keycode >= QK_DEF_LAYER && keycode <= QK_DEF_LAYER_MAX) ||
+        (keycode >= QK_TOGGLE_LAYER && keycode <= QK_TOGGLE_LAYER_MAX) ||
+        (keycode >= QK_ONE_SHOT_LAYER && keycode <= QK_ONE_SHOT_LAYER_MAX) ||
+        (keycode >= QK_LAYER_MOD && keycode <= QK_LAYER_MOD_MAX)) {
+        return false;
+    }
+
+    // Exclude special custom keycodes
+    if (keycode == DUMP_KM || keycode == AC_TOG || keycode == HPT_TEST ||
+        keycode == SOL_TOG || keycode == SOL_UP || keycode == SOL_DN || keycode == SOL_TEST) {
+        return false;
+    }
+
+    // Exclude system keys
+    if (keycode == QK_BOOT || keycode == QK_RBT) return false;
+
+    // Allow normal typing keys
+    return true;
+}
+*/
+
 // ========== Initialization ==========
 void keyboard_post_init_user(void) {
     // Enable RGB layer indication
     rgblight_layers = my_rgb_layers;
 
-    // Initialize haptic feedback
+    // Explicitly initialize solenoid pin with pull-down to prevent floating
+    #ifdef SOLENOID_PIN
+    setPinOutputPushPull(SOLENOID_PIN);  // Set as output with push-pull mode
+    writePinLow(SOLENOID_PIN);           // Ensure it starts low
+    uprintf("Solenoid pin GP15 initialized as output, driven low\n");
+    #endif
+
+    // Initialize haptic feedback (now using solenoid driver)
     #ifdef HAPTIC_ENABLE
-    uprintf("Initializing haptic feedback...\n");
+    uprintf("Initializing haptic feedback (solenoid)...\n");
     haptic_init();
     haptic_enable();
 
-    // Set to a strong click effect (mode 1)
-    haptic_set_mode(1);
-    // Set feedback to max
-    haptic_set_feedback(255);
-
     uprintf("Haptic enabled: %d\n", haptic_get_enable());
-    uprintf("Haptic mode: %d\n", haptic_get_mode());
-    uprintf("Haptic feedback: %d\n", haptic_get_feedback());
 
-    // Try to trigger haptic feedback multiple times
-    uprintf("Testing haptic play...\n");
+    // Test the solenoid with haptic_play
+    uprintf("Testing solenoid haptic play...\n");
     haptic_play();
     wait_ms(200);
     haptic_play();
     wait_ms(200);
     haptic_play();
-    uprintf("Haptic test complete\n");
+    uprintf("Solenoid haptic test complete\n");
     #endif
+
+    // Custom solenoid initialization - COMMENTED OUT (using QMK's haptic driver)
+    /*
+    // Initialize solenoid
+    setPinOutput(SOLENOID_PIN);
+    writePinLow(SOLENOID_PIN);
+
+    // Load saved settings from EEPROM
+    solenoid_config_load();
+
+    uprintf("Solenoid initialized - enabled: %d, dwell: %dms\n", solenoid_enabled, solenoid_dwell);
+    */
 
     // Wait for USB/console to be ready before dumping
     wait_ms(1000);
@@ -617,12 +759,14 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 // Toggle autocorrect
                 autocorrect_toggle();
 
-                // Haptic feedback: strong buzz ON, short double click OFF
+                // Haptic feedback: single click ON, double click OFF
                 #ifdef HAPTIC_ENABLE
                 if (autocorrect_is_enabled()) {
-                    drv2605l_pulse(DRV2605L_EFFECT_STRONG_BUZZ_100);
+                    haptic_play();  // Single click for ON
                 } else {
-                    drv2605l_pulse(DRV2605L_EFFECT_SHORT_DOUBLE_CLICK_STRONG_1_100);
+                    haptic_play();  // Double click for OFF
+                    wait_ms(50);
+                    haptic_play();
                 }
                 #endif
 
@@ -659,42 +803,104 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
                 return false;
 
             case HPT_TEST:
+                // Test haptic feedback (now using solenoid)
                 #ifdef HAPTIC_ENABLE
-                // Test haptic feedback with detailed debug
-                uprintf("\n=== HAPTIC TEST ===\n");
-                uprintf("Haptic enabled: %d\n", haptic_get_enable());
-                uprintf("Haptic mode: %d\n", haptic_get_mode());
-                uprintf("Haptic feedback: %d\n", haptic_get_feedback());
+                haptic_play();  // Single click
+                wait_ms(100);
+                haptic_play();  // Another click
+                #endif
+                return false;
 
-                // Try different modes
-                uprintf("Testing different modes...\n");
-                for (uint8_t mode = 1; mode <= 10; mode++) {
-                    uprintf("Mode %d: ", mode);
-                    haptic_set_mode(mode);
-                    haptic_set_feedback(255);  // Max feedback
-                    haptic_play();
-                    wait_ms(300);
-                }
+            // Custom solenoid controls COMMENTED OUT - using QMK's haptic system
+            /*
+            case SOL_TEST:
+                // Manual solenoid test - directly pulse GP14 for 100ms
+                uprintf("\n=== SOLENOID PIN TEST ===\n");
+                uprintf("Testing GP14 directly with 100ms pulse\n");
 
-                // Reset to mode 1
-                haptic_set_mode(1);
-                haptic_set_feedback(255);
+                // Ensure pin is configured
+                setPinOutput(SOLENOID_PIN);
 
-                // Visual feedback - quick white flash
+                // Pulse the pin high for 100ms
+                writePinHigh(SOLENOID_PIN);
+
+                // Visual feedback - cyan flash
                 #ifdef RGBLIGHT_ENABLE
                 rgblight_layers = NULL;
                 rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
-                rgblight_sethsv_noeeprom(0, 0, 255);  // White
+                rgblight_sethsv_noeeprom(128, 255, 255);  // Cyan
                 rgblight_set();
-                wait_ms(100);
+                #endif
+
+                wait_ms(100);  // Hold solenoid on for 100ms
+
+                // Turn off solenoid
+                writePinLow(SOLENOID_PIN);
+
+                // Restore LEDs
+                #ifdef RGBLIGHT_ENABLE
                 rgblight_sethsv_noeeprom(0, 0, 0);
                 rgblight_set();
                 rgblight_layers = my_rgb_layers;
                 layer_state_set_user(layer_state);
                 #endif
-                uprintf("=== HAPTIC TEST COMPLETE ===\n\n");
+
+                uprintf("=== SOLENOID TEST COMPLETE ===\n\n");
+                return false;
+
+            case SOL_TOG:
+                // Toggle solenoid on/off
+                solenoid_enabled = !solenoid_enabled;
+                solenoid_config_save();
+                uprintf("Solenoid %s\n", solenoid_enabled ? "enabled" : "disabled");
+
+                // Haptic feedback to confirm toggle
+                #ifdef HAPTIC_ENABLE
+                if (solenoid_enabled) {
+                    drv2605l_pulse(DRV2605L_EFFECT_STRONG_BUZZ_100);
+                } else {
+                    drv2605l_pulse(DRV2605L_EFFECT_SHORT_DOUBLE_CLICK_STRONG_1_100);
+                }
+                #endif
+
+                // Visual feedback - green for ON, red for OFF
+                #ifdef RGBLIGHT_ENABLE
+                rgblight_layers = NULL;
+                rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+                if (solenoid_enabled) {
+                    rgblight_sethsv_noeeprom(85, 255, 255);  // Green
+                } else {
+                    rgblight_sethsv_noeeprom(0, 255, 255);   // Red
+                }
+                rgblight_set();
+                wait_ms(200);
+                rgblight_sethsv_noeeprom(0, 0, 0);
+                rgblight_set();
+                rgblight_layers = my_rgb_layers;
+                layer_state_set_user(layer_state);
                 #endif
                 return false;
+
+            case SOL_UP:
+                // Increase solenoid dwell
+                if (solenoid_dwell < SOLENOID_DWELL_MAX) {
+                    solenoid_dwell += SOLENOID_DWELL_STEP;
+                    solenoid_config_save();
+                    uprintf("Solenoid dwell increased to %dms\n", solenoid_dwell);
+                    solenoid_pulse();  // Demonstrate new intensity
+                }
+                return false;
+
+            case SOL_DN:
+                // Decrease solenoid dwell
+                if (solenoid_dwell > SOLENOID_DWELL_MIN) {
+                    solenoid_dwell -= SOLENOID_DWELL_STEP;
+                    solenoid_config_save();
+                    uprintf("Solenoid dwell decreased to %dms\n", solenoid_dwell);
+                    solenoid_pulse();  // Demonstrate new intensity
+                }
+                return false;
+            */
         }
     }
 
@@ -703,13 +909,15 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         // Get current state before the toggle
         bool was_enabled = get_autoshift_state();
 
-        // Haptic feedback: strong buzz ON, short double click OFF
+        // Haptic feedback: single click ON, double click OFF
         // Toggle happens after we return, so check opposite
         #ifdef HAPTIC_ENABLE
         if (!was_enabled) {
-            drv2605l_pulse(DRV2605L_EFFECT_STRONG_BUZZ_100);
+            haptic_play();  // Single click for ON
         } else {
-            drv2605l_pulse(DRV2605L_EFFECT_SHORT_DOUBLE_CLICK_STRONG_1_100);
+            haptic_play();  // Click for OFF
+            wait_ms(50);
+            haptic_play();  // Second click
         }
         #endif
 
@@ -753,14 +961,34 @@ bool process_record_user(uint16_t keycode, keyrecord_t *record) {
         #endif
     }
 
+    // Custom solenoid firing COMMENTED OUT - using QMK's haptic system
+    /*
+    // Fire solenoid for normal keypresses (not special keys)
+    if (should_fire_solenoid(keycode, record)) {
+        solenoid_pulse();
+    } else if (record->event.pressed) {
+        // Debug: yellow flash when solenoid is NOT fired on keypress
+        #ifdef RGBLIGHT_ENABLE
+        // Only show for actual keypresses, not releases
+        rgblight_sethsv_noeeprom(43, 255, 255);  // Yellow flash
+        wait_ms(10);  // Brief flash
+        layer_state_set_user(layer_state);  // Restore layer color
+        #endif
+    }
+    */
+
     return true;
 }
 
 // ========== Autocorrect Visual Feedback ==========
 bool apply_autocorrect(uint8_t backspaces, const char *str, char *typo, char *correct) {
-    // Strong triple pulse when autocorrect fires
+    // Triple click when autocorrect fires
     #ifdef HAPTIC_ENABLE
-    drv2605l_pulse(DRV2605L_EFFECT_TRIPLE_CLICK_100);
+    haptic_play();
+    wait_ms(50);
+    haptic_play();
+    wait_ms(50);
+    haptic_play();
     #endif
 
     #ifdef RGBLIGHT_ENABLE
