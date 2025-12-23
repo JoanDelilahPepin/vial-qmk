@@ -1,0 +1,1130 @@
+#include QMK_KEYBOARD_H
+#include "dynamic_keymap.h"
+#include "print.h"
+#include "vial.h"
+#include "qmk_settings.h"
+#ifdef HAPTIC_ENABLE
+#include "haptic.h"
+#include "drv2605l.h" // For haptic motor patterns
+#endif
+#include "gpio.h"
+#include "deferred_exec.h"
+#include "eeprom.h"
+#include "eeconfig.h"
+
+#define HOME 0
+#define MODS 1
+#define MODS2 2
+#define UTIL 3
+#define OTHER 4
+
+enum custom_keycodes {
+    DUMP_KM = QK_KB_0,
+    AC_TOG,
+    MACRO1,
+    HPT_TEST,  // Haptic motor test keycode
+    // Custom solenoid keycodes
+    SOL_TOG,   // Toggle solenoid on/off (controls enable pin)
+    SOL_UP,    // Increase solenoid dwell (harder click)
+    SOL_DN,    // Decrease solenoid dwell (softer click)
+    SOL_TEST   // Test solenoid directly
+};
+
+// ========== RGB Layer Definitions ==========
+// Layer 0 (HOME) - Green (HSV: 85)
+const rgblight_segment_t PROGMEM layer_0[] = RGBLIGHT_LAYER_SEGMENTS(
+    {0, 12, 85, 255, 128}
+);
+
+// Layer 1 (MODS) - Purple (HSV: 191)
+const rgblight_segment_t PROGMEM layer_1[] = RGBLIGHT_LAYER_SEGMENTS(
+    {0, 12, 191, 255, 128}
+);
+
+// Layer 2 (MODS2) - Pink (HSV: 234)
+const rgblight_segment_t PROGMEM layer_2[] = RGBLIGHT_LAYER_SEGMENTS(
+    {0, 12, 234, 255, 128}
+);
+
+// Layer 3 (UTIL) - Red (HSV: 0)
+const rgblight_segment_t PROGMEM layer_3[] = RGBLIGHT_LAYER_SEGMENTS(
+    {0, 12, 0, 255, 128}
+);
+
+// Layer 4 (OTHER) - Yellow (HSV: 43)
+const rgblight_segment_t PROGMEM layer_4[] = RGBLIGHT_LAYER_SEGMENTS(
+    {0, 12, 43, 255, 128}
+);
+
+const rgblight_segment_t* const PROGMEM my_rgb_layers[] = RGBLIGHT_LAYERS_LIST(
+    layer_0,
+    layer_1,
+    layer_2,
+    layer_3,
+    layer_4
+);
+
+// ========== Forward declarations ==========
+void dump_keymap_as_c(void);
+void dump_macros_as_c(void);
+#ifdef VIAL_COMBO_ENABLE
+void dump_combos_as_c(void);
+#endif
+#ifdef VIAL_TAP_DANCE_ENABLE
+void dump_tap_dances_as_c(void);
+#endif
+#ifdef VIAL_KEY_OVERRIDE_ENABLE
+void dump_key_overrides_as_c(void);
+#endif
+void dump_all_vial_config(void);
+void print_keycode(uint16_t kc);
+
+// ========== Keycode Translation ==========
+// Basic keycodes lookup table
+static const char* const PROGMEM basic_keycodes[] = {
+    // 0x00-0x03: Reserved
+    "KC_NO", "KC_TRNS", "KC_POST_FAIL", "KC_UNDEFINED",
+    // 0x04-0x1D: Letters A-Z
+    "KC_A", "KC_B", "KC_C", "KC_D", "KC_E", "KC_F", "KC_G", "KC_H", "KC_I", "KC_J",
+    "KC_K", "KC_L", "KC_M", "KC_N", "KC_O", "KC_P", "KC_Q", "KC_R", "KC_S", "KC_T",
+    "KC_U", "KC_V", "KC_W", "KC_X", "KC_Y", "KC_Z",
+    // 0x1E-0x27: Numbers 1-0
+    "KC_1", "KC_2", "KC_3", "KC_4", "KC_5", "KC_6", "KC_7", "KC_8", "KC_9", "KC_0",
+    // 0x28-0x38: Common keys
+    "KC_ENT", "KC_ESC", "KC_BSPC", "KC_TAB", "KC_SPC",
+    "KC_MINS", "KC_EQL", "KC_LBRC", "KC_RBRC", "KC_BSLS",
+    "KC_NUHS", "KC_SCLN", "KC_QUOT", "KC_GRV", "KC_COMM", "KC_DOT", "KC_SLSH",
+    // 0x39: Caps Lock
+    "KC_CAPS",
+    // 0x3A-0x45: F1-F12
+    "KC_F1", "KC_F2", "KC_F3", "KC_F4", "KC_F5", "KC_F6",
+    "KC_F7", "KC_F8", "KC_F9", "KC_F10", "KC_F11", "KC_F12",
+    // 0x46-0x4E: Print Screen through Insert
+    "KC_PSCR", "KC_SCRL", "KC_PAUS", "KC_INS", "KC_HOME", "KC_PGUP",
+    "KC_DEL", "KC_END", "KC_PGDN",
+    // 0x4F-0x52: Arrow keys
+    "KC_RGHT", "KC_LEFT", "KC_DOWN", "KC_UP"
+};
+
+// Modifier keycodes (0xE0-0xE7)
+static const char* const PROGMEM mod_keycodes[] = {
+    "KC_LCTL", "KC_LSFT", "KC_LALT", "KC_LGUI",
+    "KC_RCTL", "KC_RSFT", "KC_RALT", "KC_RGUI"
+};
+
+// Print a keycode as readable string
+void print_keycode(uint16_t kc) {
+    // KC_NO
+    if (kc == KC_NO) {
+        uprintf("XXXXXXX");
+        return;
+    }
+    // KC_TRNS
+    if (kc == KC_TRNS) {
+        uprintf("_______");
+        return;
+    }
+
+    // Basic keycodes (0x04-0x52)
+    if (kc >= 0x04 && kc <= 0x52) {
+        uprintf("%s", basic_keycodes[kc]);
+        return;
+    }
+
+    // Modifier keycodes (0xE0-0xE7)
+    if (kc >= 0xE0 && kc <= 0xE7) {
+        uprintf("%s", mod_keycodes[kc - 0xE0]);
+        return;
+    }
+
+    // Layer-Tap: LT(layer, kc) = 0x4000 | (layer << 8) | kc
+    // Actually LT uses 0x4000-0x4FFF with layer in bits 8-11
+    // Wait, that conflicts with MT. Let me check the actual ranges:
+    // QK_LAYER_TAP = 0x4000, max = 0x4FFF (layer 0-15, kc 0-255)
+    // But MT also starts at 0x4000? No, MT uses different encoding.
+    // Actually: LT = 0x4000-0x4FFF, MT = 0x2000-0x3FFF? Let me verify...
+    // From quantum/keycodes.h:
+    // QK_MOD_TAP = 0x2000 (through 0x3FFF)
+    // QK_LAYER_TAP = 0x4000 (through 0x4FFF)
+
+    // Mod-Tap: MT(mod, kc) = 0x2000 | (mod << 8) | kc
+    if (kc >= 0x2000 && kc < 0x4000) {
+        uint8_t mod = (kc >> 8) & 0x1F;
+        uint8_t base = kc & 0xFF;
+        uprintf("MT(0x%02X, ", mod);
+        print_keycode(base);
+        uprintf(")");
+        return;
+    }
+
+    // Layer-Tap: LT(layer, kc) = 0x4000 | (layer << 8) | kc
+    if (kc >= 0x4000 && kc < 0x5000) {
+        uint8_t layer = (kc >> 8) & 0x0F;
+        uint8_t base = kc & 0xFF;
+        uprintf("LT(%d, ", layer);
+        print_keycode(base);
+        uprintf(")");
+        return;
+    }
+
+    // TO(layer) = 0x5200 | layer
+    if (kc >= 0x5200 && kc < 0x5210) {
+        uprintf("TO(%d)", kc & 0x0F);
+        return;
+    }
+
+    // MO(layer) = 0x5220 | layer
+    if (kc >= 0x5220 && kc < 0x5230) {
+        uprintf("MO(%d)", kc & 0x0F);
+        return;
+    }
+
+    // TG(layer) = 0x5280 | layer
+    if (kc >= 0x5280 && kc < 0x5290) {
+        uprintf("TG(%d)", kc & 0x0F);
+        return;
+    }
+
+    // OSL(layer) = 0x52A0 | layer
+    if (kc >= 0x52A0 && kc < 0x52B0) {
+        uprintf("OSL(%d)", kc & 0x0F);
+        return;
+    }
+
+    // QK_BOOT = 0x7C00
+    if (kc == 0x7C00) {
+        uprintf("QK_BOOT");
+        return;
+    }
+
+    // RGB/Underglow keycodes (0x7800-0x78FF)
+    if (kc >= 0x7800 && kc < 0x7900) {
+        switch (kc) {
+            case 0x7820: uprintf("UG_TOGG"); return;
+            case 0x7821: uprintf("UG_NEXT"); return;
+            case 0x7822: uprintf("UG_PREV"); return;
+            case 0x7823: uprintf("UG_HUEU"); return;
+            case 0x7824: uprintf("UG_HUED"); return;
+            case 0x7825: uprintf("UG_SATU"); return;
+            case 0x7826: uprintf("UG_SATD"); return;
+            case 0x7827: uprintf("UG_VALU"); return;
+            case 0x7828: uprintf("UG_VALD"); return;
+            case 0x7829: uprintf("UG_SPDU"); return;
+            case 0x782A: uprintf("UG_SPDD"); return;
+        }
+    }
+
+    // Media keys
+    if (kc >= 0x00A5 && kc <= 0x00CF) {
+        switch (kc) {
+            case 0x00A5: uprintf("KC_MPLY"); return;
+            case 0x00A6: uprintf("KC_MSTP"); return;
+            case 0x00A7: uprintf("KC_MPRV"); return;
+            case 0x00A8: uprintf("KC_MNXT"); return;
+            case 0x00A9: uprintf("KC_MUTE"); return;
+            case 0x00AA: uprintf("KC_VOLU"); return;
+            case 0x00AB: uprintf("KC_VOLD"); return;
+        }
+    }
+
+    // Custom keycodes (QK_KB range 0x7E00-0x7EFF)
+    if (kc >= 0x7E00 && kc < 0x7F00) {
+        uint8_t idx = kc - 0x7E00;
+        switch (idx) {
+            case 0: uprintf("DUMP_KM"); return;
+            case 1: uprintf("AC_TOG"); return;
+            case 2: uprintf("MACRO1"); return;
+            case 3: uprintf("HPT_TEST"); return;
+        }
+        uprintf("QK_KB_%d", idx);
+        return;
+    }
+
+    // Haptic keycodes (0x7C40-0x7C5F)
+    if (kc >= 0x7C40 && kc < 0x7C60) {
+        switch (kc) {
+            case 0x7C42: uprintf("HPT_ON"); return;
+            case 0x7C43: uprintf("HPT_OFF"); return;
+            case 0x7C44: uprintf("HPT_TOG"); return;
+            case 0x7C45: uprintf("HPT_RST"); return;
+            case 0x7C46: uprintf("HPT_FBK"); return;
+            case 0x7C47: uprintf("HPT_BUZ"); return;
+            case 0x7C48: uprintf("HPT_MODI"); return;
+            case 0x7C49: uprintf("HPT_MODD"); return;
+            case 0x7C4A: uprintf("HPT_CONT"); return;
+            case 0x7C4B: uprintf("HPT_CONI"); return;
+            case 0x7C4C: uprintf("HPT_COND"); return;
+            case 0x7C4D: uprintf("HPT_DWLI"); return;
+            case 0x7C4E: uprintf("HPT_DWLD"); return;
+        }
+    }
+
+    // Fallback to hex for unknown keycodes
+    uprintf("0x%04X", kc);
+}
+
+// ========== Keymap Dump Function ==========
+void dump_keymap_as_c(void) {
+    uprintf("\n// ========== VIAL Keymap Export ==========\n");
+    uprintf("// Copy this into your keymap.c file\n");
+    uprintf("// Generated on Alpha-BA keyboard\n\n");
+    uprintf("const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {\n");
+
+    for (uint8_t layer = 0; layer < DYNAMIC_KEYMAP_LAYER_COUNT; layer++) {
+        uprintf("    [%u] = LAYOUT( // Layer %u\n", layer, layer);
+
+        for (uint8_t row = 0; row < MATRIX_ROWS; row++) {
+            uprintf("        ");
+            for (uint8_t col = 0; col < MATRIX_COLS; col++) {
+                uint16_t kc = dynamic_keymap_get_keycode(layer, row, col);
+                print_keycode(kc);
+                if (col < MATRIX_COLS - 1) uprintf(", ");
+            }
+            if (row < MATRIX_ROWS - 1) {
+                uprintf(",\n");
+            } else {
+                uprintf("\n");
+            }
+        }
+
+        if (layer < DYNAMIC_KEYMAP_LAYER_COUNT - 1) {
+            uprintf("    ),\n\n");
+        } else {
+            uprintf("    )\n");
+        }
+    }
+    uprintf("};\n");
+    uprintf("// ========== End Export ==========\n\n");
+}
+
+// ========== Macros Dump Function ==========
+void dump_macros_as_c(void) {
+    uint16_t macro_buffer_size = dynamic_keymap_macro_get_buffer_size();
+    uint8_t macro_count = dynamic_keymap_macro_get_count();
+
+    uprintf("\n// ========== VIAL Macros Export ==========\n");
+    uprintf("// Total macro slots available: %d\n", macro_count);
+    uprintf("// Macro buffer size: %d bytes\n\n", macro_buffer_size);
+
+    // Read macro buffer in small chunks to avoid stack overflow
+    #define CHUNK_SIZE 64
+    uint8_t chunk[CHUNK_SIZE];
+    uint16_t offset = 0;
+    uint8_t macro_num = 0;
+    bool in_macro = false;
+
+    while (offset < macro_buffer_size && macro_num < macro_count) {
+        // Read a chunk
+        uint16_t bytes_to_read = (macro_buffer_size - offset) > CHUNK_SIZE ? CHUNK_SIZE : (macro_buffer_size - offset);
+        dynamic_keymap_macro_get_buffer(offset, bytes_to_read, chunk);
+
+        // Process the chunk
+        for (uint16_t i = 0; i < bytes_to_read; i++) {
+            if (chunk[i] == 0) {
+                if (in_macro) {
+                    // End of macro
+                    uprintf("\n\n");
+                    in_macro = false;
+                }
+                macro_num++;
+                if (macro_num >= macro_count) break;
+            } else {
+                if (!in_macro) {
+                    // Start of new macro
+                    uprintf("// Macro %d:\n", macro_num);
+                    uprintf("// Raw bytes: ");
+                    in_macro = true;
+                }
+                uprintf("0x%02X ", chunk[i]);
+            }
+        }
+        offset += bytes_to_read;
+    }
+
+    if (in_macro) {
+        uprintf("\n\n");
+    }
+}
+
+#ifdef VIAL_COMBO_ENABLE
+// ========== Combos Dump Function ==========
+void dump_combos_as_c(void) {
+    uprintf("\n// ========== VIAL Combos Export ==========\n");
+    uprintf("#ifdef COMBO_ENABLE\n\n");
+
+    vial_combo_entry_t combo_entry;
+    uint8_t valid_combos = 0;
+
+    // First pass: count valid combos
+    for (uint8_t i = 0; i < VIAL_COMBO_ENTRIES; i++) {
+        if (dynamic_keymap_get_combo(i, &combo_entry) == 0) {
+            if (combo_entry.input[0] != 0 || combo_entry.output != 0) {
+                valid_combos++;
+            }
+        }
+    }
+
+    uprintf("// %d combos configured (of %d available)\n\n", valid_combos, VIAL_COMBO_ENTRIES);
+
+    // Second pass: output combo definitions
+    for (uint8_t i = 0; i < VIAL_COMBO_ENTRIES; i++) {
+        if (dynamic_keymap_get_combo(i, &combo_entry) == 0) {
+            if (combo_entry.input[0] != 0 || combo_entry.output != 0) {
+                uprintf("// Combo %d:\n", i);
+                uprintf("// Input: ");
+                print_keycode(combo_entry.input[0]);
+                for (uint8_t j = 1; j < 4; j++) {
+                    if (combo_entry.input[j] != 0) {
+                        uprintf(" + ");
+                        print_keycode(combo_entry.input[j]);
+                    }
+                }
+                uprintf("\n// Output: ");
+                print_keycode(combo_entry.output);
+                uprintf("\n\n");
+            }
+        }
+    }
+
+    uprintf("#endif // COMBO_ENABLE\n");
+}
+#endif
+
+#ifdef VIAL_TAP_DANCE_ENABLE
+// ========== Tap Dances Dump Function ==========
+void dump_tap_dances_as_c(void) {
+    uprintf("\n// ========== VIAL Tap Dances Export ==========\n");
+    uprintf("#ifdef TAP_DANCE_ENABLE\n\n");
+
+    vial_tap_dance_entry_t td_entry;
+    uint8_t valid_tds = 0;
+
+    // Count valid tap dances
+    for (uint8_t i = 0; i < VIAL_TAP_DANCE_ENTRIES; i++) {
+        if (dynamic_keymap_get_tap_dance(i, &td_entry) == 0) {
+            if (td_entry.on_tap != 0 || td_entry.on_hold != 0 ||
+                td_entry.on_double_tap != 0 || td_entry.on_tap_hold != 0) {
+                valid_tds++;
+            }
+        }
+    }
+
+    uprintf("// %d tap dances configured (of %d available)\n\n", valid_tds, VIAL_TAP_DANCE_ENTRIES);
+
+    // Output tap dance definitions
+    for (uint8_t i = 0; i < VIAL_TAP_DANCE_ENTRIES; i++) {
+        if (dynamic_keymap_get_tap_dance(i, &td_entry) == 0) {
+            if (td_entry.on_tap != 0 || td_entry.on_hold != 0 ||
+                td_entry.on_double_tap != 0 || td_entry.on_tap_hold != 0) {
+                uprintf("// Tap Dance %d:\n", i);
+                uprintf("// On Tap: "); print_keycode(td_entry.on_tap); uprintf("\n");
+                uprintf("// On Hold: "); print_keycode(td_entry.on_hold); uprintf("\n");
+                uprintf("// On Double Tap: "); print_keycode(td_entry.on_double_tap); uprintf("\n");
+                uprintf("// On Tap-Hold: "); print_keycode(td_entry.on_tap_hold); uprintf("\n");
+                uprintf("// Tapping Term: %d\n\n", td_entry.custom_tapping_term);
+            }
+        }
+    }
+
+    uprintf("#endif // TAP_DANCE_ENABLE\n");
+}
+#endif
+
+#ifdef VIAL_KEY_OVERRIDE_ENABLE
+// ========== Key Overrides Dump Function ==========
+void dump_key_overrides_as_c(void) {
+    uprintf("\n// ========== VIAL Key Overrides Export ==========\n");
+    uprintf("#ifdef KEY_OVERRIDE_ENABLE\n\n");
+
+    vial_key_override_entry_t ko_entry;
+    uint8_t valid_kos = 0;
+
+    // Count valid key overrides
+    for (uint8_t i = 0; i < VIAL_KEY_OVERRIDE_ENTRIES; i++) {
+        if (dynamic_keymap_get_key_override(i, &ko_entry) == 0) {
+            if (ko_entry.trigger != 0 || ko_entry.replacement != 0) {
+                valid_kos++;
+            }
+        }
+    }
+
+    uprintf("// %d key overrides configured (of %d available)\n\n", valid_kos, VIAL_KEY_OVERRIDE_ENTRIES);
+
+    // Output key override definitions
+    for (uint8_t i = 0; i < VIAL_KEY_OVERRIDE_ENTRIES; i++) {
+        if (dynamic_keymap_get_key_override(i, &ko_entry) == 0) {
+            if (ko_entry.trigger != 0 || ko_entry.replacement != 0) {
+                uprintf("// Key Override %d:\n", i);
+                uprintf("// Trigger: "); print_keycode(ko_entry.trigger); uprintf("\n");
+                uprintf("// Replacement: "); print_keycode(ko_entry.replacement); uprintf("\n");
+                uprintf("// Layers: 0x%04X\n", ko_entry.layers);
+                uprintf("// Mods: 0x%02X\n", ko_entry.trigger_mods);
+                uprintf("// Options: 0x%02X\n\n", ko_entry.options);
+            }
+        }
+    }
+
+    uprintf("#endif // KEY_OVERRIDE_ENABLE\n");
+}
+#endif
+
+// ========== Master Dump Function ==========
+void dump_all_vial_config(void) {
+    // Dump keymap
+    dump_keymap_as_c();
+
+    // Dump macros
+    dump_macros_as_c();
+
+    // Dump combos if enabled
+    #ifdef VIAL_COMBO_ENABLE
+    dump_combos_as_c();
+    #endif
+
+    // Dump tap dances if enabled
+    #ifdef VIAL_TAP_DANCE_ENABLE
+    dump_tap_dances_as_c();
+    #endif
+
+    // Dump key overrides if enabled
+    #ifdef VIAL_KEY_OVERRIDE_ENABLE
+    dump_key_overrides_as_c();
+    #endif
+
+    uprintf("\n// ========== Complete VIAL Export Done ==========\n\n");
+}
+
+// ========== Layer State Handling ==========
+static uint8_t previous_layer = 0;
+
+layer_state_t layer_state_set_user(layer_state_t state) {
+    rgblight_set_layer_state(0, layer_state_cmp(state, 0));
+    rgblight_set_layer_state(1, layer_state_cmp(state, 1));
+    rgblight_set_layer_state(2, layer_state_cmp(state, 2));
+    rgblight_set_layer_state(3, layer_state_cmp(state, 3));
+    rgblight_set_layer_state(4, layer_state_cmp(state, 4));
+
+    // Haptic feedback on layer change (using solenoid)
+    #ifdef HAPTIC_ENABLE
+    uint8_t current_layer = get_highest_layer(state);
+    if (current_layer != previous_layer) {
+        // Different click patterns for different layers
+        switch (current_layer) {
+            case HOME:
+                haptic_play();  // Single click
+                break;
+            case MODS:
+                haptic_play();  // Double click
+                wait_ms(50);
+                haptic_play();
+                break;
+            case MODS2:
+                haptic_play();  // Triple click
+                wait_ms(50);
+                haptic_play();
+                wait_ms(50);
+                haptic_play();
+                break;
+            case UTIL:
+                haptic_play();  // Soft single click
+                break;
+            case OTHER:
+                haptic_play();  // Sharp single click
+                break;
+        }
+        previous_layer = current_layer;
+    }
+    #endif
+
+    return state;
+}
+
+layer_state_t default_layer_state_set_user(layer_state_t state) {
+    rgblight_set_layer_state(0, true);
+    return state;
+}
+
+// =============================================================================
+// CUSTOM SOLENOID CODE (dual haptic system with DRV2605L motor)
+// =============================================================================
+static bool solenoid_enabled;
+static uint8_t solenoid_dwell;
+static deferred_token solenoid_token = INVALID_DEFERRED_TOKEN;
+static uint16_t last_solenoid_time = 0;
+
+// EEPROM storage structure
+typedef struct {
+    bool enabled;
+    uint8_t dwell;
+} solenoid_config_t;
+
+// EEPROM functions
+void solenoid_config_save(void) {
+    solenoid_config_t config = {
+        .enabled = solenoid_enabled,
+        .dwell = solenoid_dwell
+    };
+    eeconfig_update_user_datablock(&config, 0, sizeof(solenoid_config_t));
+}
+
+void solenoid_config_load(void) {
+    solenoid_config_t config;
+    eeconfig_read_user_datablock(&config, 0, sizeof(solenoid_config_t));
+
+    // Validate stored values — handles first run or corrupted EEPROM
+    if (config.dwell < SOLENOID_DWELL_MIN || config.dwell > SOLENOID_DWELL_MAX) {
+        solenoid_enabled = SOLENOID_ENABLED_DEFAULT;
+        solenoid_dwell = SOLENOID_DWELL_DEFAULT;
+        solenoid_config_save();
+    } else {
+        solenoid_enabled = config.enabled;
+        solenoid_dwell = config.dwell;
+    }
+}
+
+// Called when EEPROM is reset
+void eeconfig_init_user(void) {
+    solenoid_enabled = SOLENOID_ENABLED_DEFAULT;
+    solenoid_dwell = SOLENOID_DWELL_DEFAULT;
+    solenoid_config_save();
+}
+
+// Solenoid control functions
+uint32_t solenoid_off_callback(uint32_t trigger_time, void *cb_arg) {
+    writePinLow(SOLENOID_PIN);
+    return 0;  // Don't repeat
+}
+
+void solenoid_set_enabled(bool enabled) {
+    solenoid_enabled = enabled;
+    #ifdef SOLENOID_ENABLE_PIN
+    writePinLow(SOLENOID_ENABLE_PIN);  // Always disable first for safety
+    wait_ms(1);  // Brief delay
+    if (enabled) {
+        writePinHigh(SOLENOID_ENABLE_PIN);
+        uprintf("Solenoid enabled via GP15\n");
+    } else {
+        uprintf("Solenoid disabled via GP15\n");
+    }
+    #endif
+    solenoid_config_save();
+}
+
+void solenoid_pulse(void) {
+    if (!solenoid_enabled) return;
+
+    // Debounce to prevent rapid fire (cooldown period)
+    uint16_t current_time = timer_read();
+    if (timer_elapsed(last_solenoid_time) < SOLENOID_DEBOUNCE_MS) {
+        return;
+    }
+
+    // Cancel any pending off-callback
+    if (solenoid_token != INVALID_DEFERRED_TOKEN) {
+        cancel_deferred_exec(solenoid_token);
+    }
+
+    writePinHigh(SOLENOID_PIN);
+    solenoid_token = defer_exec(solenoid_dwell, solenoid_off_callback, NULL);
+    last_solenoid_time = current_time;
+
+    // Visual debug indicator - pink flash when solenoid fires
+    #ifdef RGBLIGHT_ENABLE
+    rgblight_sethsv_noeeprom(234, 255, 255);  // Pink flash
+    wait_ms(20);  // Longer flash to see clearly
+    layer_state_set_user(layer_state);  // Restore layer color
+    #endif
+}
+
+// Check if we should fire the solenoid for this keycode
+static bool should_fire_solenoid(uint16_t keycode, keyrecord_t *record) {
+    // Only on key press, not release
+    if (!record->event.pressed) return false;
+
+    // Check if solenoid is enabled
+    if (!solenoid_enabled) return false;
+
+    // Exclude modifiers
+    if (keycode >= KC_LCTL && keycode <= KC_RGUI) return false;
+
+    // Exclude layer keys (but allow LT keys with SPACE)
+    if ((keycode >= QK_LAYER_TAP && keycode <= QK_LAYER_TAP_MAX)) {
+        // Check if this is a layer-tap with SPACE as the base key
+        uint8_t base_keycode = keycode & 0xFF;
+        if (base_keycode == KC_SPC) {
+            return true;  // Allow SPACE even as layer-tap
+        }
+        return false;
+    }
+
+    if ((keycode >= QK_TO && keycode <= QK_TO_MAX) ||
+        (keycode >= QK_MOMENTARY && keycode <= QK_MOMENTARY_MAX) ||
+        (keycode >= QK_DEF_LAYER && keycode <= QK_DEF_LAYER_MAX) ||
+        (keycode >= QK_TOGGLE_LAYER && keycode <= QK_TOGGLE_LAYER_MAX) ||
+        (keycode >= QK_ONE_SHOT_LAYER && keycode <= QK_ONE_SHOT_LAYER_MAX) ||
+        (keycode >= QK_LAYER_MOD && keycode <= QK_LAYER_MOD_MAX)) {
+        return false;
+    }
+
+    // Exclude special custom keycodes
+    if (keycode == DUMP_KM || keycode == AC_TOG || keycode == HPT_TEST ||
+        keycode == SOL_TOG || keycode == SOL_UP || keycode == SOL_DN || keycode == SOL_TEST) {
+        return false;
+    }
+
+    // Exclude system keys
+    if (keycode == QK_BOOT || keycode == QK_RBT) return false;
+
+    // Allow normal typing keys
+    return true;
+}
+
+// ========== Initialization ==========
+void keyboard_post_init_user(void) {
+    // Enable RGB layer indication
+    rgblight_layers = my_rgb_layers;
+
+    // Initialize custom solenoid system for purple PCB revision
+    #ifdef SOLENOID_PIN
+    setPinOutputPushPull(SOLENOID_PIN);  // Set as output with push-pull mode (GP14)
+    writePinLow(SOLENOID_PIN);           // Ensure it starts low
+    uprintf("Custom solenoid pin GP14 initialized as output, driven low\n");
+    #endif
+
+    #ifdef SOLENOID_ENABLE_PIN
+    setPinOutputPushPull(SOLENOID_ENABLE_PIN);  // Set enable pin as output (GP15)
+    writePinLow(SOLENOID_ENABLE_PIN);           // Start disabled for safety
+    uprintf("Solenoid enable pin GP15 initialized as output, driven low (disabled initially)\n");
+    #endif
+
+    // Load solenoid configuration from EEPROM
+    solenoid_config_load();
+    uprintf("Solenoid config loaded - enabled: %d, dwell: %d ms\n", solenoid_enabled, solenoid_dwell);
+
+    // Apply the loaded enable state
+    if (solenoid_enabled) {
+        #ifdef SOLENOID_ENABLE_PIN
+        writePinHigh(SOLENOID_ENABLE_PIN);
+        uprintf("Solenoid enabled based on saved config\n");
+        #endif
+    }
+
+    // Initialize haptic feedback (DRV2605L motor)
+    #ifdef HAPTIC_ENABLE
+    uprintf("Initializing haptic feedback (DRV2605L motor)...\n");
+    haptic_init();
+    haptic_enable();
+
+    uprintf("Haptic motor enabled: %d\n", haptic_get_enable());
+
+    // Test the motor with haptic_play
+    uprintf("Testing DRV2605L motor haptic play...\n");
+    haptic_play();
+    wait_ms(200);
+    haptic_play();
+    wait_ms(200);
+    haptic_play();
+    uprintf("Solenoid haptic test complete\n");
+    #endif
+
+    // Custom solenoid initialization - COMMENTED OUT (using QMK's haptic driver)
+    /*
+    // Initialize solenoid
+    setPinOutput(SOLENOID_PIN);
+    writePinLow(SOLENOID_PIN);
+
+    // Load saved settings from EEPROM
+    solenoid_config_load();
+
+    uprintf("Solenoid initialized - enabled: %d, dwell: %dms\n", solenoid_enabled, solenoid_dwell);
+    */
+
+    // Wait for USB/console to be ready before dumping
+    wait_ms(1000);
+    // Dump all VIAL configuration once after boot for debugging
+    dump_all_vial_config();
+
+    // Enable autocorrect by default
+    autocorrect_enable();
+
+    // Initialize Auto Shift settings
+    #ifdef AUTO_SHIFT_ENABLE
+    autoshift_enable();
+    set_autoshift_timeout(300);  // 300ms timeout for testing (can adjust as needed)
+
+    #ifdef QMK_SETTINGS
+    // Write Auto Shift enable state to EEPROM
+    // The auto_shift byte is at offset 27 in qmk_settings_t
+    const uint16_t AUTO_SHIFT_OFFSET = 27;
+
+    // Always set it to our desired configuration
+    // Bit 0 (0x01): enable = ON
+    // Bit 1 (0x02): modifiers = OFF
+    // Bit 2 (0x04): no_auto_shift_special = OFF
+    // Bit 3 (0x08): no_auto_shift_numeric = OFF (we WANT numeric shifting!)
+    // Bit 4 (0x10): no_auto_shift_alpha = ON (we DON'T want alpha shifting)
+    // Bit 5 (0x20): repeat = OFF
+    // Bit 6 (0x40): no_auto_repeat = OFF
+    uint8_t auto_shift_byte = 0x11;  // Binary: 00010001
+    dynamic_keymap_set_qmk_settings(AUTO_SHIFT_OFFSET, auto_shift_byte);
+    #endif
+    #endif
+}
+
+// ========== Key Processing ==========
+bool process_record_user(uint16_t keycode, keyrecord_t *record) {
+    if (record->event.pressed) {
+        switch (keycode) {
+            case DUMP_KM:
+                // Dump all VIAL configuration to console
+                dump_all_vial_config();
+
+                // Visual feedback - quick cyan flash
+                #ifdef RGBLIGHT_ENABLE
+                rgblight_layers = NULL;
+                rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+                rgblight_sethsv_noeeprom(128, 255, 255);  // Cyan
+                rgblight_set();
+                wait_ms(100);
+                rgblight_sethsv_noeeprom(0, 0, 0);
+                rgblight_set();
+                rgblight_layers = my_rgb_layers;
+                layer_state_set_user(layer_state);
+                #endif
+
+                return false;
+
+            case AC_TOG:
+                // Toggle autocorrect
+                autocorrect_toggle();
+
+                // Haptic feedback: single click ON, double click OFF
+                #ifdef HAPTIC_ENABLE
+                if (autocorrect_is_enabled()) {
+                    haptic_play();  // Single click for ON
+                } else {
+                    haptic_play();  // Double click for OFF
+                    wait_ms(50);
+                    haptic_play();
+                }
+                #endif
+
+                #ifdef RGBLIGHT_ENABLE
+                rgblight_layers = NULL;
+                rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+                if (autocorrect_is_enabled()) {
+                    // Flash once for ON - blue flash
+                    rgblight_sethsv_noeeprom(170, 255, 255);  // Blue
+                    rgblight_set();
+                    wait_ms(150);
+                    rgblight_sethsv_noeeprom(0, 0, 0);    // Off
+                    rgblight_set();
+                    wait_ms(150);
+                } else {
+                    // Flash twice for OFF - blue flashes
+                    for (int i = 0; i < 2; i++) {
+                        rgblight_sethsv_noeeprom(170, 255, 255);  // Blue
+                        rgblight_set();
+                        wait_ms(150);
+                        rgblight_sethsv_noeeprom(0, 0, 0);      // Off
+                        rgblight_set();
+                        wait_ms(150);
+                    }
+                }
+                rgblight_layers = my_rgb_layers;
+                layer_state_set_user(layer_state);
+                #endif
+
+                return false;
+
+            case MACRO1:
+                SEND_STRING("I'm so sorry... -PyroL");
+                return false;
+
+            case HPT_TEST:
+                // Test haptic motor feedback (DRV2605L)
+                #ifdef HAPTIC_ENABLE
+                haptic_play();  // Single click
+                wait_ms(100);
+                haptic_play();  // Another click
+                #endif
+                return false;
+
+            // Custom solenoid controls (separate from haptic motor)
+            case SOL_TEST:
+                // Test solenoid pulse
+                uprintf("\n=== SOLENOID TEST ===\n");
+                uprintf("Testing solenoid pulse (dwell: %d ms, enabled: %d)\n", solenoid_dwell, solenoid_enabled);
+
+                // Pulse the solenoid
+                solenoid_pulse();
+
+                // Visual feedback - cyan flash
+                #ifdef RGBLIGHT_ENABLE
+                rgblight_layers = NULL;
+                rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+                rgblight_sethsv_noeeprom(128, 255, 255);  // Cyan
+                rgblight_set();
+                wait_ms(100);
+                rgblight_sethsv_noeeprom(0, 0, 0);
+                rgblight_set();
+                rgblight_layers = my_rgb_layers;
+                layer_state_set_user(layer_state);
+                #endif
+
+                uprintf("=== SOLENOID TEST COMPLETE ===\n\n");
+                return false;
+
+            case SOL_TOG:
+                // Toggle solenoid on/off (controls enable pin)
+                solenoid_set_enabled(!solenoid_enabled);
+                uprintf("Solenoid %s\n", solenoid_enabled ? "enabled" : "disabled");
+
+                // Test pulse if enabled
+                if (solenoid_enabled) {
+                    solenoid_pulse();
+                }
+
+                // Haptic motor feedback to confirm toggle
+                #ifdef HAPTIC_ENABLE
+                if (solenoid_enabled) {
+                    haptic_play();  // Single click for ON
+                } else {
+                    haptic_play();  // Double click for OFF
+                    wait_ms(50);
+                    haptic_play();
+                }
+                #endif
+
+                // Visual feedback - green for ON, red for OFF
+                #ifdef RGBLIGHT_ENABLE
+                rgblight_layers = NULL;
+                rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+                if (solenoid_enabled) {
+                    rgblight_sethsv_noeeprom(85, 255, 255);  // Green
+                } else {
+                    rgblight_sethsv_noeeprom(0, 255, 255);   // Red
+                }
+                rgblight_set();
+                wait_ms(200);
+                rgblight_sethsv_noeeprom(0, 0, 0);
+                rgblight_set();
+                rgblight_layers = my_rgb_layers;
+                layer_state_set_user(layer_state);
+                #endif
+                return false;
+
+            case SOL_UP:
+                // Increase solenoid dwell
+                if (solenoid_dwell < SOLENOID_DWELL_MAX) {
+                    solenoid_dwell += SOLENOID_DWELL_STEP;
+                    solenoid_config_save();
+                    uprintf("Solenoid dwell increased to %dms\n", solenoid_dwell);
+                    solenoid_pulse();  // Demonstrate new intensity
+                }
+                return false;
+
+            case SOL_DN:
+                // Decrease solenoid dwell
+                if (solenoid_dwell > SOLENOID_DWELL_MIN) {
+                    solenoid_dwell -= SOLENOID_DWELL_STEP;
+                    solenoid_config_save();
+                    uprintf("Solenoid dwell decreased to %dms\n", solenoid_dwell);
+                    solenoid_pulse();  // Demonstrate new intensity
+                }
+                return false;
+        }
+    }
+
+    // Fire solenoid on keypress if enabled
+    if (record->event.pressed && should_fire_solenoid(keycode, record)) {
+        solenoid_pulse();
+    }
+
+    // Handle Auto Shift toggle visual feedback
+    if (keycode == AS_TOGG && record->event.pressed) {
+        // Get current state before the toggle
+        bool was_enabled = get_autoshift_state();
+
+        // Haptic feedback: single click ON, double click OFF
+        // Toggle happens after we return, so check opposite
+        #ifdef HAPTIC_ENABLE
+        if (!was_enabled) {
+            haptic_play();  // Single click for ON
+        } else {
+            haptic_play();  // Click for OFF
+            wait_ms(50);
+            haptic_play();  // Second click
+        }
+        #endif
+
+        #ifdef RGBLIGHT_ENABLE
+        // Temporarily disable layer indication
+        rgblight_layers = NULL;
+
+        // Enable RGB if it's off
+        if (!rgblight_is_enabled()) {
+            rgblight_enable_noeeprom();
+        }
+
+        // The toggle will happen after we return true
+        // So we check the opposite of current state
+        if (!was_enabled) {  // Will be ON after toggle
+            // Flash once for ON - pink flash
+            rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+            rgblight_sethsv_noeeprom(234, 255, 255);  // Pink
+            rgblight_set();  // Force update
+            wait_ms(200);
+            rgblight_sethsv_noeeprom(0, 0, 0);    // Off
+            rgblight_set();  // Force update
+            wait_ms(200);
+        } else {  // Will be OFF after toggle
+            // Flash twice for OFF - pink flashes
+            rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+            for (int i = 0; i < 2; i++) {
+                rgblight_sethsv_noeeprom(234, 255, 255);  // Pink
+                rgblight_set();  // Force update
+                wait_ms(200);
+                rgblight_sethsv_noeeprom(0, 0, 0);      // Off
+                rgblight_set();  // Force update
+                wait_ms(200);
+            }
+        }
+
+        // Re-enable layer indication
+        rgblight_layers = my_rgb_layers;
+        // Force layer update to restore original color
+        layer_state_set_user(layer_state);
+        #endif
+    }
+
+    // Custom solenoid firing COMMENTED OUT - using QMK's haptic system
+    /*
+    // Fire solenoid for normal keypresses (not special keys)
+    if (should_fire_solenoid(keycode, record)) {
+        solenoid_pulse();
+    } else if (record->event.pressed) {
+        // Debug: yellow flash when solenoid is NOT fired on keypress
+        #ifdef RGBLIGHT_ENABLE
+        // Only show for actual keypresses, not releases
+        rgblight_sethsv_noeeprom(43, 255, 255);  // Yellow flash
+        wait_ms(10);  // Brief flash
+        layer_state_set_user(layer_state);  // Restore layer color
+        #endif
+    }
+    */
+
+    return true;
+}
+
+// ========== Autocorrect Visual Feedback ==========
+bool apply_autocorrect(uint8_t backspaces, const char *str, char *typo, char *correct) {
+    // Triple click when autocorrect fires
+    #ifdef HAPTIC_ENABLE
+    haptic_play();
+    wait_ms(50);
+    haptic_play();
+    wait_ms(50);
+    haptic_play();
+    #endif
+
+    #ifdef RGBLIGHT_ENABLE
+    rgblight_layers = NULL;
+    rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+    rgblight_sethsv_noeeprom(170, 255, 255);  // Long blue flash for correction
+    rgblight_set();
+    wait_ms(300);
+    rgblight_sethsv_noeeprom(0, 0, 0);
+    rgblight_set();
+    rgblight_layers = my_rgb_layers;
+    layer_state_set_user(layer_state);
+    #endif
+
+    return true;
+}
+
+// ========== Bootloader Visual Feedback ==========
+bool shutdown_user(bool jump_to_bootloader) {
+    #ifdef RGBLIGHT_ENABLE
+    if (jump_to_bootloader) {
+        rgblight_enable_noeeprom();
+        rgblight_mode_noeeprom(RGBLIGHT_MODE_STATIC_LIGHT);
+        // Flash magenta rapidly before entering bootloader
+        for (int i = 0; i < 5; i++) {
+            rgblight_sethsv_noeeprom(213, 255, 255);  // Magenta
+            rgblight_set();
+            wait_ms(100);
+            rgblight_sethsv_noeeprom(0, 0, 0);
+            rgblight_set();
+            wait_ms(100);
+        }
+    }
+    #endif
+    return true;
+}
+
+// ========== Static Combos (compiled in, Vial combos disabled) ==========
+const uint16_t PROGMEM combo_enter[] = {KC_L, KC_SCLN, COMBO_END};
+const uint16_t PROGMEM combo_comma[] = {KC_B, KC_N, COMBO_END};
+const uint16_t PROGMEM combo_dot[] = {KC_N, KC_M, COMBO_END};
+const uint16_t PROGMEM combo_lshift[] = {KC_A, KC_S, COMBO_END};
+const uint16_t PROGMEM combo_esc[] = {KC_A, KC_Q, COMBO_END};
+const uint16_t PROGMEM combo_bspc[] = {KC_P, KC_O, COMBO_END};
+const uint16_t PROGMEM combo_rshift[] = {KC_K, KC_L, KC_SCLN, COMBO_END};
+const uint16_t PROGMEM combo_tab[] = {KC_Q, KC_W, COMBO_END};
+const uint16_t PROGMEM combo_lctl[] = {KC_S, KC_D, COMBO_END};
+const uint16_t PROGMEM combo_lalt[] = {KC_D, KC_F, COMBO_END};
+const uint16_t PROGMEM combo_lgui[] = {KC_F, KC_G, COMBO_END};
+const uint16_t PROGMEM combo_rgui[] = {KC_H, KC_J, COMBO_END};
+const uint16_t PROGMEM combo_ralt[] = {KC_J, KC_K, COMBO_END};
+const uint16_t PROGMEM combo_rctl[] = {KC_K, KC_L, COMBO_END};
+const uint16_t PROGMEM combo_bsls[] = {KC_P, KC_SCLN, COMBO_END};
+const uint16_t PROGMEM combo_capsword[] = {KC_A, KC_S, KC_D, COMBO_END};  // 0x7C73 = CW_TOGG
+
+combo_t key_combos[] = {
+    COMBO(combo_enter, KC_ENT),      // L + ;
+    COMBO(combo_comma, KC_COMM),     // B + N
+    COMBO(combo_dot, KC_DOT),        // N + M
+    COMBO(combo_lshift, KC_LSFT),    // A + S
+    COMBO(combo_esc, KC_ESC),        // A + Q
+    COMBO(combo_bspc, KC_BSPC),      // P + O
+    COMBO(combo_rshift, KC_RSFT),    // K + L + ;
+    COMBO(combo_tab, KC_TAB),        // Q + W
+    COMBO(combo_lctl, KC_LCTL),      // S + D
+    COMBO(combo_lalt, KC_LALT),      // D + F
+    COMBO(combo_lgui, KC_LGUI),      // F + G
+    COMBO(combo_rgui, KC_RGUI),      // H + J
+    COMBO(combo_ralt, KC_RALT),      // J + K
+    COMBO(combo_rctl, KC_RCTL),      // K + L
+    COMBO(combo_bsls, KC_BSLS),      // P + ;
+    COMBO(combo_capsword, CW_TOGG),  // A + S + D
+};
+
+// ========== Keymaps ==========
+// LAYOUT is 28 keys: 10-10-8 (row 2 has positions 4 and 6 as phantom in matrix)
+const uint16_t PROGMEM keymaps[][MATRIX_ROWS][MATRIX_COLS] = {
+    [HOME] = LAYOUT(
+        KC_Q, KC_W, KC_E, KC_R, KC_T, KC_Y, KC_U, KC_I, KC_O, KC_P,
+        KC_A, KC_S, KC_D, KC_F, KC_G, KC_H, KC_J, KC_K, KC_L, KC_SCLN,
+        LT(2, KC_Z), KC_X, KC_C, KC_V, LT(1, KC_SPC), KC_B, KC_N, KC_M),
+
+    [MODS] = LAYOUT(
+        KC_1, KC_2, KC_3, KC_4, KC_5, KC_6, KC_7, KC_8, KC_9, KC_0,
+        KC_TAB, KC_ESC, KC_TAB, KC_SCLN, KC_QUOT, KC_MINS, KC_EQL, KC_LBRC, KC_RBRC, KC_BSLS,
+        KC_LCTL, KC_LCTL, KC_LALT, KC_LGUI, MT(MOD_LSFT, KC_ENT), KC_SCLN, KC_QUOT, KC_SLSH),
+
+    [MODS2] = LAYOUT(
+        KC_F1, KC_F2, KC_F3, KC_F4, KC_F5, KC_F6, KC_F7, KC_F8, KC_F9, KC_F10,
+        KC_LSFT, KC_F11, KC_F12, KC_MINS, KC_EQL, KC_LBRC, KC_RBRC, KC_UP, KC_GRV, TO(4),
+        UG_VALU, KC_LGUI, KC_LALT, KC_LGUI, UG_NEXT, KC_LEFT, KC_DOWN, KC_RGHT),
+
+    [UTIL] = LAYOUT(
+        KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
+        KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO,
+        KC_NO, KC_NO, KC_NO, TO(0), KC_NO, KC_NO, KC_NO, KC_NO),
+
+    [OTHER] = LAYOUT(
+        QK_BOOT, DUMP_KM, KC_NO, KC_NO, KC_NO, KC_NO, HF_ON, HF_TOGG, HF_RST, HPT_TEST,
+        KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, KC_NO, HF_BUZZ, HF_FDBK, HF_CONT, HF_PREV,
+        KC_NO, KC_NO, KC_NO, TO(0), AC_TOG, HF_NEXT, HF_COND, HF_CONU),
+};
